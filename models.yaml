@@ -51,7 +51,7 @@
 # starts charging or disappears, replace it against these criteria rather than
 # by picking whatever is free that week.
 
-checked: '2026-09-14'
+checked: '2026-10-12'
 source: https://openrouter.ai/api/v1/models
 tiers:
   top:
@@ -94,8 +94,8 @@ tiers:
       probed: '2026-09-14'
     - id: moonshotai/kimi-k3
       name: Kimi K3
-      in: 2.6481
-      out: 13.2827
+      in: 0.73
+      out: 10
       ctx: 1048
       reasoning: true
       probe: ok
@@ -171,8 +171,8 @@ tiers:
       probed: '2026-09-14'
     - id: deepseek/deepseek-v4-pro
       name: DeepSeek V4 Pro
-      in: 1.6
-      out: 3.2
+      in: 0.4124
+      out: 0.8248
       ctx: 1048
       reasoning: true
       probe: ok
@@ -190,8 +190,8 @@ tiers:
       probed: '2026-09-14'
     - id: moonshotai/kimi-k2.5
       name: Kimi K2.5
-      in: 0.45
-      out: 2.25
+      in: 0.5
+      out: 2.5
       ctx: 262
       reasoning: true
       probe: ok
@@ -247,8 +247,8 @@ tiers:
       probed: '2026-09-14'
     - id: minimax/minimax-m2.7
       name: MiniMax M2.7
-      in: 0.3
-      out: 1.2
+      in: 0.21
+      out: 0.84
       ctx: 204
       reasoning: true
       probe: ok
@@ -265,8 +265,8 @@ tiers:
       probed: '2026-09-14'
     - id: deepseek/deepseek-v4-flash
       name: DeepSeek V4 Flash
-      in: 0.0886
-      out: 0.1772
+      in: 0.03
+      out: 1.28
       ctx: 1048
       reasoning: true
       probe: ok
