@@ -82,3 +82,39 @@ jobs:
 
       - name: Clone and run, as a newcomer would
         run: make test-e2e
+
+  pr-format:
+    # The PR description is part of the change: required sections, a
+    # Conventional Commit title, the site impact (computed from the files,
+    # declared in the PR), and declared provenance that matches the meta.yaml
+    # of every topic the PR touches. Offline, no model. Labels the PR
+    # site:none or site:image-rebuild with the built-in token — no bot.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check the PR description
+        run: |
+          pip install -q pyyaml
+          python3 scripts/check_pr.py --event "$GITHUB_EVENT_PATH"             --base "origin/${{ github.base_ref }}" --label-file site-label.txt
+      - name: Label the site impact
+        # Runs even when the description check fails: the label is a fact
+        # about the files. A fork's token cannot write labels; that is fine.
+        if: always() && hashFiles('site-label.txt') != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          label="$(cat site-label.txt)"
+          other=$([ "$label" = "site:none" ] && echo "site:image-rebuild" || echo "site:none")
+          gh label create "$label" --force --color "$([ "$label" = "site:none" ] && echo 0e8a16 || echo d93f0b)"             --description "set by scripts/check_pr.py from the changed files"
+          gh pr edit "${{ github.event.pull_request.number }}" --add-label "$label" --remove-label "$other" ||             gh pr edit "${{ github.event.pull_request.number }}" --add-label "$label"

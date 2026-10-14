@@ -60,11 +60,49 @@ saying where it came from.
 - **Commits:** [Conventional Commits](https://www.conventionalcommits.org/):
   `fix(cka): …`, `feat(labs): …`, `docs: …`, `test: …`, `i18n(es): …`. The body
   says *why*.
-- **Language:** code, comments, commit messages and project docs in English.
-  Study material in the language it is written for.
+- **Language:** English is the standard for PRs, commits and code; a PR
+  description in your own language is welcome too — everything gets
+  translated. Study material in the language it is written for.
 - **Small pull requests**, one concern each. Generated files (STATUS.md,
   MODELS.md, the README table, the API table) are regenerated, never edited
   by hand: `teach status`, `scripts/gen_readme_table.py`, `scripts/gen_api_docs.py`.
+
+## Pull requests
+
+One template per kind of change, in
+[`.github/PULL_REQUEST_TEMPLATE/`](.github/PULL_REQUEST_TEMPLATE/):
+`content.md`, `translation.md`, `lab.md`, `video.md`, `code.md`, `docs.md`
+(pick one with `?template=<name>.md` on the compare URL). Every PR has the same
+required sections — **What and why · Kind · Provenance · Evidence · How to test
+it from a clean clone · Risk and rollback · Depends on** — and each template
+adds only what its kind needs (a translation: the gate result and three
+paragraphs picked with a stated seed; a lab: break → verify fails, fix → verify
+passes; a video: duration, a frame, the audio language).
+
+**Provenance** says *human* or *AI*; for AI, the backend, the model, the date
+and the cost, plus the official source. It is verified, not trusted:
+`scripts/check_pr.py` runs on every PR and compares what the PR declares with
+the `meta.yaml` of every topic it touches. A person and a model pass the same
+filter.
+
+## Merging and deploying the site
+
+Every PR is labelled by CI from the files it changes —
+`scripts/check_pr.py` computes it, the PR declares it on its `Site:` line, and
+a mismatch fails the check. The list of what the image is built from lives in
+one place: the `paths` of `.github/workflows/docker.yml`, which match what
+`deploy/Dockerfile` copies.
+
+| Label | Means | Merge |
+|---|---|---|
+| `site:none` | docs, tests, `.github/`, `Makefile`, helm values… nothing the image is built from | as soon as CI is green |
+| `site:image-rebuild` | `teach/`, `certs/`, `scripts/`, `media/`, root `*.yaml`, `pyproject.toml`, `deploy/Dockerfile` | mergeable to `main` — `main` is the source. On merge GitHub Actions rebuilds the **public** image (`ghcr.io/villadalmine/study-cybercirujas:latest`, what people who clone or `docker run` get) |
+
+**No PR deploys production.** The site at study.cybercirujas.club is released
+by the maintainer in a separate step: build the image on their machine or
+cluster, `helm upgrade` with an explicit tag ([docs/OPERATING.md](docs/OPERATING.md)),
+and tag the released commit `site-YYYY-MM-DD` so anyone can see what is
+published: `git tag -l 'site-*'`.
 
 ## Checks that must pass
 
@@ -79,6 +117,7 @@ installing dependencies. CI runs the same targets.
 | labs: every lab honours the contract; `lab new` produces a valid lab; broken specs are caught; `lab up` attaches stdin | `tests/test_labs.py` | `make test` |
 | translation: the structural gate a translation must pass (code blocks, URLs, headings, length) | `tests/test_translation_verify.py` | `make test` |
 | content: quality floor, manifests, Kubernetes APIs, provenance, sources, syllabus, versions; README/API tables up to date | `scripts/check_*.py`, `gen_*.py --check` | `make verify-ci` |
+| the PR description: required sections, Conventional Commit title, declared provenance = `meta.yaml` | `scripts/check_pr.py`, `tests/test_check_pr.py` | `scripts/check_pr.py --title "<title>" --body-file <body.md> --base origin/main` (CI runs it on every PR) |
 | everything fast above, in one go | `tests/` | `make test` |
 
 Lab lifecycle in a container (run → break → verify → cleanup per lab) joins
