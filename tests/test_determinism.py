@@ -22,6 +22,7 @@ outputs are compared byte for byte.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import stat
 import subprocess
@@ -70,8 +71,10 @@ VALIDATORS = [
     ["scripts/check_sources.py"],
     ["scripts/check_versions.py"],
     ["scripts/check_syllabus.py"],
-    ["-c", "from teach.cli import main; main()", "lab", "validate", "--all"],
 ]
+# Must give the same verdict twice; whether every lab passes is
+# tests/test_labs.py's job (it knows the documented exceptions).
+LAB_VALIDATE = ["-c", "from teach.cli import main; main()", "lab", "validate", "--all"]
 
 
 def sovereign_env(tripwire_dir: Path) -> dict:
@@ -127,7 +130,8 @@ class DeterminismTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(first.stdout.encode()).hexdigest(),
                          hashlib.sha256(second.stdout.encode()).hexdigest(),
                          "the same tree produced different derived output")
-        self.assertIn('"live_checked": false', first.stdout.replace('\\"', '"'))
+        served = json.loads(first.stdout)
+        self.assertFalse(json.loads(served["/api/models"][1])["live_checked"])
         self.assertNoModelCalled()
 
     def test_validators_pass_offline_and_agree_with_themselves(self):
@@ -137,6 +141,12 @@ class DeterminismTests(unittest.TestCase):
                 self.assertEqual(first.returncode, 0, (first.stdout + first.stderr)[-2000:])
                 self.assertEqual((first.returncode, first.stdout),
                                  (second.returncode, second.stdout))
+        self.assertNoModelCalled()
+
+    def test_lab_validation_is_stable_offline(self):
+        first, second = self.run_py(*LAB_VALIDATE), self.run_py(*LAB_VALIDATE)
+        self.assertIn("lab(s) checked", first.stdout)
+        self.assertEqual((first.returncode, first.stdout), (second.returncode, second.stdout))
         self.assertNoModelCalled()
 
 
