@@ -150,7 +150,8 @@ models, **[Open WebUI](https://openwebui.com)** gives you a chat with a
 *Knowledge* base you fill with this repository's markdown.
 
 **Hardware, realistically:** 8 GB of RAM and any recent CPU work (answers at a
-few words per second); a GPU with 6 GB+ of VRAM makes it conversational. Disk:
+few words per second); a GPU with 6 GB+ of VRAM makes it conversational.
+Docker is needed for Open WebUI. Disk:
 ~6.5 GB for the Open WebUI image plus ~4 GB of models.
 
 1. **Install Ollama** (<https://ollama.com/download>) and pull two models: a
@@ -160,6 +161,18 @@ few words per second); a GPU with 6 GB+ of VRAM makes it conversational. Disk:
    ```bash
    ollama pull bge-m3      # embeddings, 1.2 GB, 100+ languages
    ollama pull qwen3:4b    # chat, 2.5 GB; qwen3:8b if you have 8 GB of VRAM
+   ```
+
+   **Cap the context window.** Recent Ollama releases load a model with its
+   *maximum* context unless told otherwise: `qwen3:4b` asked for 256k tokens
+   and took 43 GB, spilling to the CPU and stalling for minutes. 8k is plenty
+   for a few retrieved chunks; a named variant makes it stick for every client:
+
+   ```bash
+   printf 'FROM qwen3:4b
+PARAMETER num_ctx 8192
+' > Modelfile
+   ollama create study-qwen3-4b -f Modelfile     # 3.9 GB loaded, fits a 6 GB GPU
    ```
 
 2. **Start Open WebUI**, pointed at Ollama on your host:
@@ -192,9 +205,15 @@ few words per second); a GPU with 6 GB+ of VRAM makes it conversational. Disk:
    translations of the same text.
 
 4. **Workspace → Knowledge → New**, name it `cka-en`, and upload the folder.
-   In a new chat type `#` and pick `cka-en` to attach it, then ask: *"Explain
-   how a PersistentVolumeClaim binds to a PersistentVolume, and give me an
-   exercise."* Answers cite the files they came from.
+   In a new chat pick the model `study-qwen3-4b`, type `#` and pick `cka-en`
+   to attach it, then ask: *"Explain how a PersistentVolumeClaim binds to a
+   PersistentVolume."* Answers cite the chunks they came from (`[1]`, `[2]`).
+
+**Measured on 2026-10-14** (Ollama 0.40, Open WebUI v0.12.2, a 16 GB AMD GPU):
+the 54 CKA files in English indexed in 105 s, and a question asked in Spanish
+against the English material was answered in Spanish, with citations, in under
+90 s including the first model load. On a CPU only, expect indexing in minutes
+and answers at a few words per second.
 
 Treat answers like the material itself: check them against the official
 documentation each topic links to.

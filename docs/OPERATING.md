@@ -334,6 +334,7 @@ image-cluster` from a working copy that has rendered them includes them.
 |----------|-----|---------|
 | `TEACH_ROOT` | Data repo root | `.` (cwd) |
 | `TEACH_SECRET` | Session signing key | random |
+| `TEACH_OFFLINE` | `1` = the API never calls out (no live OpenRouter price check); what the determinism tests use | unset |
 | `TEACH_SITE_URL` | Hostname in the video watermark | `study.cybercirujas.club` |
 | `TEACH_BACKEND` | Generation backend | `litellm` |
 | `LITELLM_BASE_URL` | LiteLLM proxy URL | — |

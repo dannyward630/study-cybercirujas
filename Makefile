@@ -20,12 +20,20 @@ REGISTRY ?= registry.registry:5000
 
 GEN_FLAGS := $(if $(TOPIC),--topic $(TOPIC)) $(if $(FORCE),--force) $(if $(BACKEND),--backend $(BACKEND)) $(if $(LANG),--lang $(LANG))
 
+.PHONY: preflight docker-run smoke determinism test-e2e
 .PHONY: help setup status cert next install list show generate serve lab-up lab-down lab-status git-init publish clean image-cluster deploy-local test audit batch quality verify metrics clean-registry check-models probe-models mcp-setup mcp-check graph graph-setup wiki verify-ci
 
 help:
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
 
-install: ## create the venv and install the CLI
+preflight: ## check what make setup needs (python3 >= 3.11 with venv, git) and say what is missing
+	@command -v git >/dev/null 2>&1 || { echo "ERROR: git not found. Debian/Ubuntu: sudo apt install git"; exit 1; }
+	@command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 not found. Install Python 3.11 or newer (Debian/Ubuntu: sudo apt install python3 python3-venv)"; exit 1; }
+	@python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' || { echo "ERROR: Python 3.11+ required, found $$(python3 --version 2>&1)"; exit 1; }
+	@python3 -c 'import venv, ensurepip' 2>/dev/null || { echo "ERROR: python3 has no venv/ensurepip. Debian/Ubuntu: sudo apt install python3-venv"; exit 1; }
+	@echo "preflight OK: $$(python3 --version), $$(git --version)"
+
+install: preflight ## create the venv and install the CLI
 	python3 -m venv $(VENV)
 	$(VENV)/bin/pip install -q -e .
 	@echo "OK: $(TEACH)"
@@ -40,7 +48,19 @@ generate: ## generate content with AI (CERT= TOPIC= BACKEND=litellm|claude|codex
 	$(TEACH) cert generate $(CERT) $(GEN_FLAGS)
 
 serve: ## API + web (HOST= PORT=)
+	@test -x $(TEACH) || { echo "ERROR: $(TEACH) not found — run 'make setup' first"; exit 1; }
+	@echo "Site: http://$(HOST):$(PORT)   API docs: http://$(HOST):$(PORT)/docs   (Ctrl-C to stop)"
 	$(TEACH) serve --host $(HOST) --port $(PORT)
+
+docker-run: ## run the public image instead of the source (PORT=)
+	@command -v docker >/dev/null 2>&1 || { echo "ERROR: docker not found — https://docs.docker.com/get-docker/ (or use: make setup && make serve)"; exit 1; }
+	@docker info >/dev/null 2>&1 || { echo "ERROR: docker is installed but the daemon is not reachable (is Docker running? are you in the docker group?)"; exit 1; }
+	@echo "Site: http://localhost:$(PORT)   API docs: http://localhost:$(PORT)/docs   (Ctrl-C to stop)"
+	docker run --rm -p $(PORT):8000 ghcr.io/villadalmine/study-cybercirujas:latest
+
+smoke: ## start the real server on a free port and hit the site, API and CLI (free, offline)
+	@test -x $(VENV)/bin/python3 || { echo "ERROR: run 'make setup' first"; exit 1; }
+	$(VENV)/bin/python3 -m unittest tests.test_smoke -v
 
 lab-up: ## bring up a topic lab (CERT= TOPIC=)
 	$(TEACH) lab up $(CERT) $(TOPIC)
@@ -103,8 +123,16 @@ milestone: ## work the declared milestone to completion, then stop
 publish-complete: ## build+deploy if a certification became complete (same TAG to both)
 	$(VENV)/bin/python3 scripts/publish_if_complete.py $(if $(DRY),--dry-run,)
 
-test: ## run the tests (stdlib unittest, no extra dependencies)
+test: ## every fast test: units, offline smoke of site/API/CLI, labs, determinism (no key, no network)
 	$(VENV)/bin/python3 -m unittest discover tests -v
+
+determinism: ## derived files and validators twice, byte for byte, with network and models blocked
+	$(VENV)/bin/python3 -m unittest tests.test_determinism -v
+
+test-e2e: ## slow: clone this repo fresh, make setup, serve, hit site/API/CLI, run a Docker lab, clean up
+	@# Clones the committed HEAD, not the working tree: commit first, or set
+	@# SRC=<url> to test the public repository exactly as a newcomer gets it.
+	bash tests/e2e/clone_and_run.sh
 
 audit: ## list pending/corrupt combos without regenerating anything
 	$(VENV)/bin/python3 scripts/fix_corrupted_content.py --audit-only

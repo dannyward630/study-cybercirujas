@@ -114,6 +114,40 @@ def lab_down(cert_id: str, topic_id: str) -> None:
     typer.echo(f"Lab {cert_id}/{topic_id}: {result['state']}")
 
 
+@lab_app.command("validate")
+def lab_validate(
+    cert_id: str = typer.Argument(None, help="Certification (omit with --all)"),
+    topic_id: str = typer.Argument(None, help="Topic id"),
+    all_labs: bool = typer.Option(False, "--all", help="Validate every lab in certs/"),
+) -> None:
+    """Check a lab against the contract (lab.yaml keys, provider, OS, bash -n). Offline."""
+    if all_labs:
+        directories = sorted(p.parent for p in (catalog.root() / "certs").glob("*/*/lab/lab.yaml"))
+    elif cert_id and topic_id:
+        directories = [labs.lab_dir(cert_id, topic_id)]
+    else:
+        typer.echo("Usage: teach lab validate <cert> <topic>  |  teach lab validate --all", err=True)
+        raise typer.Exit(2)
+    problems = [p for d in directories for p in labs.validate_spec(d)]
+    for problem in problems:
+        typer.echo(problem)
+    typer.echo(f"{len(directories)} lab(s) checked, {len(problems)} problem(s)")
+    raise typer.Exit(1 if problems else 0)
+
+
+@lab_app.command("new")
+def lab_new(cert_id: str, topic_id: str,
+            force: bool = typer.Option(False, "--force", help="Overwrite an existing lab")) -> None:
+    """Create a lab from the template, without AI: lab.yaml + a break_fix.sh to fill in."""
+    try:
+        directory = labs.scaffold(cert_id, topic_id, force=force)
+    except (labs.LabError, KeyError, FileNotFoundError) as error:
+        typer.echo(f"Error: {error}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"Created {directory}/lab.yaml and break_fix.sh — fill in the TODOs, then:")
+    typer.echo(f"  teach lab validate {cert_id} {topic_id}")
+
+
 @lab_app.command("status")
 def lab_status(cert_id: str, topic_id: str) -> None:
     """Status of a topic lab."""

@@ -725,14 +725,8 @@ def generate_topic(
         )
         lab_dir.mkdir(parents=True, exist_ok=True)
         (lab_dir / "break_fix.sh").write_text(break_fix)
-        lab_spec = {
-            "cert": cert_id,
-            "topic": topic_id,
-            "title": topic["title"],
-            "provider": "local",  # v1: un solo provider; el runner futuro lee esto
-            "resources": {"vms": [{"name": "lab", "os": "debian-12", "cpus": 1, "ram_mb": 1024}]},
-            "setup": ["break_fix.sh"],
-        }
+        from . import labs
+        lab_spec = labs.default_spec(cert_id, topic_id, topic["title"])
         (lab_dir / "lab.yaml").write_text(
             yaml.safe_dump(lab_spec, sort_keys=False, allow_unicode=True)
         )

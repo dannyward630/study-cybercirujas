@@ -175,6 +175,106 @@ def _status_cluster(name: str) -> dict:
     return {"running": running}
 
 
+# ------------------------------------------------- the lab contract, checkable
+
+REQUIRED_KEYS = ("cert", "topic", "title", "provider", "resources", "setup")
+PROVIDERS = ("local", "terraform")
+
+
+def default_spec(cert_id: str, topic_id: str, title: str) -> dict:
+    """The lab.yaml every topic starts from — one definition, used by the AI
+    generator and by `teach lab new`, so a lab written by hand and one written
+    by a model are held to the same contract."""
+    return {
+        "cert": cert_id,
+        "topic": topic_id,
+        "title": title,
+        "provider": "local",
+        "resources": {"vms": [{"name": "lab", "os": "debian-12", "cpus": 1, "ram_mb": 1024}]},
+        "setup": ["break_fix.sh"],
+    }
+
+
+BREAK_FIX_TEMPLATE = """#!/usr/bin/env bash
+# {cert} {topic} — {title}
+# BREAK & FIX lab. Runs inside a throwaway container (`teach lab up {cert} {topic}`),
+# never on your own machine.
+set -euo pipefail
+
+if [ "$(id -u)" -eq 0 ]; then
+    echo "Run this as an ordinary user inside the lab container, not as root." >&2
+    exit 1
+fi
+
+echo "This lab breaks something on purpose. Only in a disposable lab."
+read -r -p "Type LAB to continue: " answer
+[ "$answer" = "LAB" ] || {{ echo "Cancelled. Nothing changed."; exit 0; }}
+
+# --- BREAK -------------------------------------------------------------------
+# TODO: break one thing, reversibly, that the topic teaches how to diagnose.
+
+# --- SYMPTOM -----------------------------------------------------------------
+echo "Symptom: TODO — what the student will see, and what 'fixed' looks like."
+
+# --- SOLUTION (commented) ----------------------------------------------------
+# TODO: the fix, step by step.
+"""
+
+
+def validate_spec(directory: Path) -> list[str]:
+    """Problems with a lab directory, [] when it honours the contract.
+
+    Deterministic and offline: reads files, and syntax-checks break_fix.sh with
+    `bash -n` (parses, never executes) when bash is available.
+    """
+    problems: list[str] = []
+    spec_file = directory / "lab.yaml"
+    if not spec_file.exists():
+        return [f"{spec_file}: missing"]
+    try:
+        spec = yaml.safe_load(spec_file.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as error:
+        return [f"{spec_file}: not valid YAML ({error})"]
+    if not isinstance(spec, dict):
+        return [f"{spec_file}: not a mapping"]
+    problems += [f"{spec_file}: missing key '{k}'" for k in REQUIRED_KEYS if k not in spec]
+    provider = spec.get("provider")
+    if provider not in PROVIDERS:
+        problems.append(f"{spec_file}: provider {provider!r} not in {PROVIDERS}")
+    if provider == "local":
+        vms = (spec.get("resources") or {}).get("vms") or []
+        if not vms:
+            problems.append(f"{spec_file}: local provider needs resources.vms")
+        for vm in vms:
+            if vm.get("os") not in OS_IMAGES:
+                problems.append(f"{spec_file}: os {vm.get('os')!r} not in {sorted(OS_IMAGES)}")
+    for step in spec.get("setup") or []:
+        script = directory / step
+        if not script.exists():
+            problems.append(f"{spec_file}: setup step {step} does not exist")
+        elif script.suffix == ".sh" and shutil.which("bash"):
+            result = _run(["bash", "-n", str(script)])
+            if result.returncode != 0:
+                problems.append(f"{script}: bash -n failed: {result.stderr.strip()}")
+    return problems
+
+
+def scaffold(cert_id: str, topic_id: str, force: bool = False) -> Path:
+    """Write a lab from the template, no model involved. Returns its directory."""
+    topic = certs.get_topic(cert_id, topic_id)
+    directory = lab_dir(cert_id, topic_id)
+    if (directory / "lab.yaml").exists() and not force:
+        raise LabError(f"{directory} already has a lab (use --force to overwrite)")
+    directory.mkdir(parents=True, exist_ok=True)
+    spec = default_spec(cert_id, str(topic_id), topic["title"])
+    (directory / "lab.yaml").write_text(
+        yaml.safe_dump(spec, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    (directory / "break_fix.sh").write_text(
+        BREAK_FIX_TEMPLATE.format(cert=cert_id, topic=topic_id, title=topic["title"]),
+        encoding="utf-8")
+    return directory
+
+
 # ----------------------------------------------------------------- public API
 
 def up(cert_id: str, topic_id: str) -> dict:

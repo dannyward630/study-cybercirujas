@@ -64,3 +64,21 @@ jobs:
             exit 1
           fi
           echo "No key-shaped strings found."
+
+  e2e:
+    # The newcomer's path, end to end: clone, make setup, make serve, the
+    # site, the API, the CLI, and a break-and-fix lab in Docker. Slow (a pip
+    # install and a container), so it runs beside verify rather than inside it.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the script clones this checkout; a full history clones cleanly
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Clone and run, as a newcomer would
+        run: make test-e2e
