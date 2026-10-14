@@ -237,18 +237,38 @@ def validate_spec(directory: Path) -> list[str]:
         return [f"{spec_file}: not valid YAML ({error})"]
     if not isinstance(spec, dict):
         return [f"{spec_file}: not a mapping"]
+    # Every nested value is type-checked before it is used, so a malformed lab
+    # is reported rather than aborting `lab validate --all` with a traceback.
+    # Extra keys are allowed on purpose: the lab.yaml v2 of the study-lab
+    # runner (schema_version, modes, hints, ...) is a superset of this one.
     problems += [f"{spec_file}: missing key '{k}'" for k in REQUIRED_KEYS if k not in spec]
     provider = spec.get("provider")
     if provider not in PROVIDERS:
         problems.append(f"{spec_file}: provider {provider!r} not in {PROVIDERS}")
+    resources = spec.get("resources")
+    if "resources" in spec and not isinstance(resources, dict):
+        problems.append(f"{spec_file}: resources must be a mapping")
+        resources = {}
+    setup = spec.get("setup")
+    if "setup" in spec and not (isinstance(setup, list) and all(isinstance(s, str) for s in setup)):
+        problems.append(f"{spec_file}: setup must be a list of file names")
+        setup = []
+    setup = setup or []
     if provider == "local":
-        vms = (spec.get("resources") or {}).get("vms") or []
-        if not vms:
-            problems.append(f"{spec_file}: local provider needs resources.vms")
+        vms = (resources or {}).get("vms")
+        if not isinstance(vms, list) or not vms:
+            problems.append(f"{spec_file}: local provider needs a non-empty resources.vms list")
+            vms = []
         for vm in vms:
-            if vm.get("os") not in OS_IMAGES:
+            if not isinstance(vm, dict):
+                problems.append(f"{spec_file}: each resources.vms entry must be a mapping")
+            elif vm.get("os") not in OS_IMAGES:
                 problems.append(f"{spec_file}: os {vm.get('os')!r} not in {sorted(OS_IMAGES)}")
-    for step in spec.get("setup") or []:
+        # The local provider always runs break_fix.sh (_up_container,
+        # _up_cluster); a lab that does not declare it cannot be run.
+        if "break_fix.sh" not in setup:
+            problems.append(f"{spec_file}: local provider needs break_fix.sh in setup")
+    for step in setup:
         script = directory / step
         if not script.exists():
             problems.append(f"{spec_file}: setup step {step} does not exist")

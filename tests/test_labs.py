@@ -87,6 +87,25 @@ class ContractTests(unittest.TestCase):
         self.assertIn("provider 'cloud-x'", problems)
 
     @unittest.skipUnless(shutil.which("bash"), "needs bash")
+    def test_malformed_nested_fields_are_reported_not_raised(self):
+        directory = labs.scaffold("cka", "1.1")
+        for body, expected in [
+            ("cert: c\ntopic: t\ntitle: x\nprovider: local\nresources: [invalid]\nsetup: [break_fix.sh]\n",
+             "resources must be a mapping"),
+            ("cert: c\ntopic: t\ntitle: x\nprovider: local\nresources: {vms: [debian]}\nsetup: [break_fix.sh]\n",
+             "each resources.vms entry must be a mapping"),
+            ("cert: c\ntopic: t\ntitle: x\nprovider: local\nresources: {vms: [{os: debian-12}]}\nsetup: break_fix.sh\n",
+             "setup must be a list"),
+            ("cert: c\ntopic: t\ntitle: x\nprovider: local\nresources: {vms: [{os: debian-12}]}\nsetup: [{x: 1}]\n",
+             "setup must be a list"),
+            ("cert: c\ntopic: t\ntitle: x\nprovider: local\nresources: {vms: [{os: debian-12}]}\nsetup: []\n",
+             "needs break_fix.sh in setup"),
+        ]:
+            with self.subTest(expected=expected):
+                (directory / "lab.yaml").write_text(body)
+                self.assertTrue(any(expected in p for p in labs.validate_spec(directory)),
+                                labs.validate_spec(directory))
+
     def test_a_script_that_does_not_parse_is_reported(self):
         directory = labs.scaffold("cka", "1.1")
         (directory / "break_fix.sh").write_text("if then fi (\n")
