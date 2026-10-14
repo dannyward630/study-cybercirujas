@@ -18,6 +18,11 @@ on:
   push:
     branches: [main]
   pull_request:
+    # `edited` re-runs pr-format when the title or description changes;
+    # without it a corrected description stayed red and an edited one kept
+    # the old green verdict (review on #1). verify and e2e skip `edited`:
+    # the code did not change.
+    types: [opened, synchronize, reopened, edited]
   workflow_dispatch:
 
 permissions:
@@ -25,11 +30,13 @@ permissions:
 
 concurrency:
   # A newer push makes the older run irrelevant; cancel it rather than queue.
-  group: verify-${{ github.ref }}
+  # A description edit must not cancel a code run on the same ref.
+  group: verify-${{ github.ref }}-${{ github.event.action == 'edited' && 'edited' || 'code' }}
   cancel-in-progress: true
 
 jobs:
   verify:
+    if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -69,6 +76,7 @@ jobs:
     # The newcomer's path, end to end: clone, make setup, make serve, the
     # site, the API, the CLI, and a break-and-fix lab in Docker. Slow (a pip
     # install and a container), so it runs beside verify rather than inside it.
+    if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
