@@ -206,6 +206,25 @@ PARAMETER num_ctx 8192
      ghcr.io/open-webui/open-webui:v0.12.2
    ```
 
+   That is the Docker Desktop form (Windows, macOS, WSL), where
+   `host.docker.internal` reaches the host — the one tested here. **On native
+   Linux** Ollama listens on `127.0.0.1:11434`, which a bridged container
+   cannot reach through `host-gateway`. Share the host's network instead, and
+   keep Open WebUI on loopback too (with host networking `-p` is ignored and
+   it would otherwise listen on every interface):
+
+   ```bash
+   docker run -d --name open-webui --network host \
+     -e HOST=127.0.0.1 -e PORT=3000 \
+     -e OLLAMA_BASE_URL=http://127.0.0.1:11434 \
+     -e RAG_EMBEDDING_ENGINE=ollama -e RAG_EMBEDDING_MODEL=bge-m3 \
+     -v open-webui:/app/backend/data \
+     ghcr.io/open-webui/open-webui:v0.12.2
+   ```
+
+   Do not make Ollama listen on `0.0.0.0` to work around it: its API has no
+   authentication, so that exposes it to your whole network.
+
    Open <http://localhost:3000> and create the first account (it is local and
    becomes the admin). Pin a release tag rather than `main`.
 
