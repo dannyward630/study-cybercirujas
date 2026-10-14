@@ -26,9 +26,9 @@ document, adding or dropping a certification family or a language, changing
 the lab contract or the provenance format, adding a dependency on any
 external service, or changing what the checks enforce.
 
-1. **Open** a GitHub Discussion in the *Proposals* category (or, until
-   Discussions are enabled, an issue labelled `proposal`) titled
-   `RFC: <what>`, with: the problem, the proposed change, alternatives
+1. **Open** an issue with the *Proposal (RFC)* form (it is titled
+   `RFC: <what>` and labelled `proposal`), or a GitHub Discussion in a
+   *Proposals* category once Discussions are enabled, with: the problem, the proposed change, alternatives
    considered, and how it will be checked (a principle without a check is a
    wish).
 2. **Comment period: 14 days** from opening. Anyone may comment. The author

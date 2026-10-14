@@ -1,0 +1,31 @@
+name: Proposal (RFC)
+description: Change how the project works — a rule, the lab or provenance format, a certification family, a language, a new external dependency
+title: "RFC: "
+labels: [proposal]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Proposals follow [GOVERNANCE.md](https://github.com/villadalmine/study-cybercirujas/blob/main/GOVERNANCE.md#proposals-rfcs--for-anything-that-changes-how-the-project-works): 14 days of comments, then lazy consensus. Day-to-day fixes do not need one — open a pull request.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What does not work today, and for whom?
+    validations: {required: true}
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations: {required: true}
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations: {required: true}
+  - type: textarea
+    id: check
+    attributes:
+      label: How it will be checked
+      description: A principle without a check is a wish. Which test, validator or CI job will enforce it?
+    validations: {required: true}
