@@ -45,24 +45,12 @@ jobs:
           .venv/bin/pip install -q -e .
 
       - name: Verify
-        # `make verify` minus the three checks that cannot hold in CI:
-        #   check_units    reads ~/.config/systemd — the workstation's units
-        #   check_config   compares against usage.jsonl, which is local state
-        #   status_matrix  counts rendered videos, and `media/**/*.mp4` is
-        #                  gitignored (they are large), so a clean checkout has
-        #                  none and every video column reads as missing
-        # All three describe THIS machine, not the commit. Found by this
-        # workflow's own first run, which is the point of having it.
-        run: |
-          .venv/bin/python3 scripts/quality_report.py
-          .venv/bin/python3 scripts/check_manifests.py
-          .venv/bin/python3 scripts/check_k8s_apis.py
-          .venv/bin/python3 scripts/check_provenance.py
-          .venv/bin/python3 scripts/check_sources.py
-          .venv/bin/python3 scripts/check_versions.py
-          .venv/bin/python3 scripts/check_syllabus.py
-          .venv/bin/python3 scripts/gen_api_docs.py --check
-          .venv/bin/python3 -m unittest discover tests
+        # One definition, in the Makefile: `make verify-ci` is `make verify`
+        # minus the checks that describe the owner's workstation rather than
+        # the commit (installed systemd units, the local usage log, rendered
+        # videos, the optional code graph). A contributor runs the same target
+        # locally and gets the same verdict.
+        run: make verify-ci
 
       - name: Secrets
         # The same shapes the pre-commit hook refuses, in case a clone never

@@ -1,11 +1,17 @@
 name: Build & Push Docker Image
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
+      # Everything deploy/Dockerfile COPYs. It ships every root *.yaml (the
+      # API reads models.yaml and pipeline.yaml) and scripts/ (/api/status
+      # imports from it); the filter listed only catalog.yaml, so the
+      # 2026-10-12 models.yaml price refresh never reached the public image.
       - 'teach/**'
-      - 'catalog.yaml'
+      - '*.yaml'
+      - 'scripts/**'
       - 'certs/**'
       - 'media/**'
       - 'deploy/Dockerfile'

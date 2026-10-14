@@ -20,7 +20,7 @@ REGISTRY ?= registry.registry:5000
 
 GEN_FLAGS := $(if $(TOPIC),--topic $(TOPIC)) $(if $(FORCE),--force) $(if $(BACKEND),--backend $(BACKEND)) $(if $(LANG),--lang $(LANG))
 
-.PHONY: help setup status cert next install list show generate serve lab-up lab-down lab-status git-init publish clean image-cluster deploy-local test audit batch quality verify metrics clean-registry check-models probe-models mcp-setup mcp-check graph graph-setup wiki
+.PHONY: help setup status cert next install list show generate serve lab-up lab-down lab-status git-init publish clean image-cluster deploy-local test audit batch quality verify metrics clean-registry check-models probe-models mcp-setup mcp-check graph graph-setup wiki verify-ci
 
 help:
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -188,6 +188,7 @@ verify: ## checks that cost no API budget (floor + manifests + k8s APIs + tests)
 	$(VENV)/bin/python3 scripts/check_config.py
 	$(VENV)/bin/python3 scripts/check_graph.py
 	$(VENV)/bin/python3 scripts/gen_api_docs.py --check
+	$(VENV)/bin/python3 scripts/gen_readme_table.py --check
 	$(VENV)/bin/python3 -m unittest discover tests
 	@echo
 	@echo "Network, run separately (still no API quota):"
@@ -198,6 +199,24 @@ verify: ## checks that cost no API budget (floor + manifests + k8s APIs + tests)
 	@echo "  scripts/check_claims.py        does the cited page SAY what we claim?"
 	@echo "Costs the bot key (\$$0.27 measured), never the subscription:"
 	@echo "  scripts/probe_models.py        do they answer, read our material, speak each language?"
+
+verify-ci: ## the free checks that hold on ANY clean clone — what CI runs, and what a contributor runs
+	@# `make verify` minus three checks that describe the owner's workstation,
+	@# not the commit: check_units reads ~/.config/systemd, check_config reads
+	@# the local usage log, and status_matrix --check counts rendered videos,
+	@# which are gitignored, so on a fresh clone every video column reads as
+	@# missing and the check fails (found by cloning fresh on 2026-10-14).
+	@# check_graph is skipped too: graphify is an optional install.
+	$(VENV)/bin/python3 scripts/quality_report.py
+	$(VENV)/bin/python3 scripts/check_manifests.py
+	$(VENV)/bin/python3 scripts/check_k8s_apis.py
+	$(VENV)/bin/python3 scripts/check_provenance.py
+	$(VENV)/bin/python3 scripts/check_sources.py
+	$(VENV)/bin/python3 scripts/check_versions.py
+	$(VENV)/bin/python3 scripts/check_syllabus.py
+	$(VENV)/bin/python3 scripts/gen_api_docs.py --check
+	$(VENV)/bin/python3 scripts/gen_readme_table.py --check
+	$(VENV)/bin/python3 -m unittest discover tests
 
 # ---------------------------------------------------------------------------
 # The paved path. Everything below is one command that does the whole thing in
