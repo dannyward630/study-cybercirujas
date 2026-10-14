@@ -124,6 +124,11 @@ def check(title: str, body: str, files: list[str], root: Path = REPO) -> list[st
         problems.append("Provenance: 'Author:' must be 'ai' or 'human' when certs/ material changes")
         return problems
     for directory in dirs:
+        if not (root / directory).is_dir():
+            # The PR removed (or renamed away) this topic/language: there is
+            # nothing left whose provenance could be checked. A directory that
+            # still exists without meta.yaml is still an error, below.
+            continue
         meta_file = root / directory / "meta.yaml"
         if not meta_file.exists():
             problems.append(f"{directory}: no meta.yaml — material without provenance")

@@ -1,5 +1,6 @@
 """scripts/check_pr.py: the PR format as a check, offline (fixtures in tests/fixtures/pr/)."""
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -22,6 +23,19 @@ class CheckPrTests(unittest.TestCase):
         problems = "\n".join(check_pr.check("fix(cka): reclaim policy", self.body("bad.md"), TOUCHED))
         self.assertIn("empty section: ## Risk and rollback", problems)
         self.assertIn("meta.yaml says 'claude'", problems)
+
+    def test_deleted_material_is_not_missing_provenance(self):
+        gone = ["certs/cka/9.9/xx/content.md", "certs/cka/9.9/xx/meta.yaml"]
+        self.assertEqual(check_pr.check("fix(cka): x", self.body("good.md"), TOUCHED + gone), [])
+
+    def test_existing_material_without_meta_still_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            topic = Path(tmp) / "certs" / "cka" / "1.1" / "en"
+            topic.mkdir(parents=True)
+            (topic / "content.md").write_text("x")
+            problems = check_pr.check("fix(cka): x", self.body("good.md"),
+                                      ["certs/cka/1.1/en/content.md"], root=Path(tmp))
+            self.assertTrue(any("no meta.yaml" in p for p in problems))
 
     def test_title_must_be_a_conventional_commit(self):
         problems = check_pr.check("Fixed stuff", self.body("good.md"), [])
