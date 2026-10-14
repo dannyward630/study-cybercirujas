@@ -122,6 +122,18 @@ class DeterminismTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("netguard", result.stderr)
 
+    def test_netguard_blocks_connect_ex_to_a_numeric_address(self):
+        # No DNS involved, and connect_ex is a separate method from connect.
+        result = self.run_py("-c", "import socket; s = socket.socket(); s.settimeout(2); "
+                                   "print(s.connect_ex(('1.1.1.1', 443)))")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("netguard", result.stderr)
+
+    def test_netguard_lets_loopback_through(self):
+        result = self.run_py("-c", "import socket; s = socket.socket(); s.settimeout(2); "
+                                   "print(s.connect_ex(('127.0.0.1', 9)))")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_derived_artefacts_are_byte_identical_twice(self):
         first = self.run_py("-c", DERIVE)
         self.assertEqual(first.returncode, 0, first.stderr[-2000:])

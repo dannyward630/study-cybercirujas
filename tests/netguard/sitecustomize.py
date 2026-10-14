@@ -32,5 +32,17 @@ def _getaddrinfo(host, *args, **kwargs):
     return _real_getaddrinfo(host, *args, **kwargs)
 
 
+def _connect_ex(self, address):
+    # connect_ex reports errors as a return code instead of raising, and it
+    # is a separate method: guarding only connect() let a numeric external
+    # address through. Same guard, raised, so it cannot be mistaken for a
+    # transient network error.
+    if self.family in (socket.AF_INET, socket.AF_INET6) and _host(address) not in _LOCAL:
+        raise PermissionError(f"netguard: external connection blocked: {address!r}")
+    return _real_connect_ex(self, address)
+
+
+_real_connect_ex = socket.socket.connect_ex
 socket.socket.connect = _connect
+socket.socket.connect_ex = _connect_ex
 socket.getaddrinfo = _getaddrinfo
