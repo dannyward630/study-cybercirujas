@@ -262,7 +262,9 @@ def validate_spec(directory: Path) -> list[str]:
         for vm in vms:
             if not isinstance(vm, dict):
                 problems.append(f"{spec_file}: each resources.vms entry must be a mapping")
-            elif vm.get("os") not in OS_IMAGES:
+            elif not isinstance(vm.get("os"), str) or vm["os"] not in OS_IMAGES:
+                # isinstance first: a list or mapping is unhashable and the
+                # membership test would raise instead of reporting.
                 problems.append(f"{spec_file}: os {vm.get('os')!r} not in {sorted(OS_IMAGES)}")
         # The local provider always runs break_fix.sh (_up_container,
         # _up_cluster); a lab that does not declare it cannot be run.
@@ -283,8 +285,12 @@ def scaffold(cert_id: str, topic_id: str, force: bool = False) -> Path:
     """Write a lab from the template, no model involved. Returns its directory."""
     topic = certs.get_topic(cert_id, topic_id)
     directory = lab_dir(cert_id, topic_id)
-    if (directory / "lab.yaml").exists() and not force:
-        raise LabError(f"{directory} already has a lab (use --force to overwrite)")
+    # Either file is someone's work: a hand-written break_fix.sh, or one left
+    # by an interrupted generation (generator.py writes the script before
+    # lab.yaml). Neither is replaced by the TODO template without --force.
+    existing = [name for name in ("lab.yaml", "break_fix.sh") if (directory / name).exists()]
+    if existing and not force:
+        raise LabError(f"{directory} already has {', '.join(existing)} (use --force to overwrite)")
     directory.mkdir(parents=True, exist_ok=True)
     spec = default_spec(cert_id, str(topic_id), topic["title"])
     (directory / "lab.yaml").write_text(

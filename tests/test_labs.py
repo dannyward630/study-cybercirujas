@@ -106,6 +106,25 @@ class ContractTests(unittest.TestCase):
                 self.assertTrue(any(expected in p for p in labs.validate_spec(directory)),
                                 labs.validate_spec(directory))
 
+    def test_unhashable_os_is_reported_not_raised(self):
+        directory = labs.scaffold("cka", "1.1")
+        for os_value in ("[debian-12]", "{name: debian-12}"):
+            with self.subTest(os=os_value):
+                (directory / "lab.yaml").write_text(
+                    "cert: c\ntopic: t\ntitle: x\nprovider: local\n"
+                    f"resources: {{vms: [{{os: {os_value}}}]}}\nsetup: [break_fix.sh]\n")
+                self.assertTrue(any("os " in p for p in labs.validate_spec(directory)))
+
+    def test_new_lab_never_overwrites_a_lone_break_fix_script(self):
+        directory = labs.lab_dir("cka", "1.1")
+        directory.mkdir(parents=True)
+        (directory / "break_fix.sh").write_text("# my own work\n")
+        with self.assertRaises(labs.LabError):
+            labs.scaffold("cka", "1.1")
+        self.assertEqual((directory / "break_fix.sh").read_text(), "# my own work\n")
+        labs.scaffold("cka", "1.1", force=True)  # explicit overwrite still works
+        self.assertIn("TODO", (directory / "break_fix.sh").read_text())
+
     def test_a_script_that_does_not_parse_is_reported(self):
         directory = labs.scaffold("cka", "1.1")
         (directory / "break_fix.sh").write_text("if then fi (\n")
