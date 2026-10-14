@@ -23,6 +23,7 @@ only reads and writes the contract.
 """
 
 import datetime
+import os
 import shutil
 import subprocess
 import sys
@@ -115,6 +116,7 @@ def _up_container(directory: Path, spec: dict, name: str) -> None:
     result = _run([
         "docker", "run", "-d", "--name", name,
         "--cpus", cpus, "--memory", ram,
+        *_owner_label(),
         image, "sleep", "infinity",
     ])
     if result.returncode != 0:
@@ -143,8 +145,34 @@ def _exec_script_cmd(name: str, interactive: bool) -> list[str]:
             name, "bash", "break_fix.sh"]
 
 
+OWNER_LABEL = "org.cybercirujas.study.owner"
+
+
+def _owner_label() -> list[str]:
+    """`--label` that stamps who created the container, when that is known.
+
+    TEACH_LAB_OWNER is an ownership token: a container is created carrying it
+    (atomically, by `docker run`), and `lab down` with the same token removes
+    only containers that carry it. Lab names are fixed (teach-<cert>-<topic>),
+    so without a token a test or script could delete someone else's lab that
+    happens to hold the name. Unset, nothing changes for a student.
+    """
+    owner = os.environ.get("TEACH_LAB_OWNER")
+    return ["--label", f"{OWNER_LABEL}={owner}"] if owner else []
+
+
 def _down_container(name: str) -> None:
-    _run(["docker", "rm", "-f", name])
+    owner = os.environ.get("TEACH_LAB_OWNER")
+    if not owner:
+        _run(["docker", "rm", "-f", name])
+        return
+    # Resolve the name to IDs that carry this owner's label, and remove by ID:
+    # a container with the same name but another owner (or none) is left alone.
+    found = _run(["docker", "ps", "-aq", "--no-trunc",
+                  "--filter", f"name=^/{name}$",
+                  "--filter", f"label={OWNER_LABEL}={owner}"])
+    for container_id in found.stdout.split():
+        _run(["docker", "rm", "-f", container_id])
 
 
 def _status_container(name: str) -> dict:
