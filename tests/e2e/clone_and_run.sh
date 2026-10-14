@@ -40,7 +40,9 @@ grep -q netguard <<<"$(.venv/bin/python3 -c 'import urllib.request; urllib.reque
     && ok "external network blocked for Python from here on" || fail "netguard is not active"
 
 step "make serve on :$PORT (offline)"
-setsid make -s serve PORT="$PORT" >"$WORK/serve.log" 2>&1 &
+# A new session so cleanup can stop make and the server as one process group.
+# Python, not setsid(1): macOS does not ship setsid.
+python3 -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])'     make -s serve PORT="$PORT" >"$WORK/serve.log" 2>&1 &
 SERVER_PID=$!
 for _ in $(seq 1 60); do curl -sf "localhost:$PORT/healthz" >/dev/null && break; sleep 1; done
 curl -sf "localhost:$PORT/healthz" >/dev/null || { cat "$WORK/serve.log"; fail "server did not start"; }
