@@ -7,25 +7,25 @@ this file rather than ticked — an item here means it is still open.
 Everything below is derived from the tree. Verify any line with `make status`,
 `make check-updates` or [STATUS.md](STATUS.md) rather than trusting the date.
 
-Last reviewed: **2026-09-18** · site: study.cybercirujas.club
+Last reviewed: **2026-09-30** (counts below re-checked against STATUS.md on 2026-10-14) · site: study.cybercirujas.club
 
 ## Where it is
 
-**27 certifications published and studyable**, 42 in the catalogue:
+**28 certifications published and studyable** (26 in English and Spanish, `mcpa` and `ckne` in English only), 42 in the catalogue:
 
 | Family | Published | Outstanding |
 |---|---|---|
 | ☸️ CNCF / Kubernetes | 15 / 16 | `cba` — unreadable PDF, needs the OCR route and a human to check the result. `ckne` published in English (beta syllabus) |
 | 🐧 Linux / LPI | 9 / 14 | `lpic-2` (41), `lpic-3-300` (20), `lpi-020-100` (17), `lfcs` (5), `lfca` (6) |
 | ☁️ Cloud providers | 3 / 5 | AWS, Azure and Google careers exist end to end. `terraform-associate` (37) and `terraform-advanced` (27) — syllabus only, `active: false` |
-| 🤖 AI | 0 / 7 | `mcpa` complete in English, needs Spanish (17). Syllabi frozen, coming-soon: `aws-aif` (14), `gcp-gail` (15), `ai-901` (7), `nca-aiio` (22), `nca-genl` (31), `ncp-aii` (39) |
+| 🤖 AI | 1 / 7 | `mcpa` published in English, needs Spanish (17). Syllabi frozen, coming-soon: `aws-aif` (14), `gcp-gail` (15), `ai-901` (7), `nca-aiio` (22), `nca-genl` (31), `ncp-aii` (39) |
 
 **The study bot is live**, all four phases: one topic, a whole certification
 (the model asks for what it needs through tools), a whole career (one pass per
 certification plus a synthesis), and progress kept in the student's own browser.
 Bring your own OpenRouter key. Zero platform cost.
 
-## Where we left off — 2026-09-18
+## Where we left off — 2026-09-30
 
 Everything below is open. Nothing is running and nothing spends until someone
 starts it.

@@ -1,5 +1,14 @@
 # Educational Platform
 
+> **Original design (July 2026), kept for its reasoning.** Where it and the
+> code disagree, the code and [README.md](README.md) win. Superseded on
+> purpose: there is no paid study zone — all content is public and login-free,
+> and `teach/core/auth.py` is a deny-all placeholder (the admin/admin stub was
+> removed 2026-07-19); the default generator is whatever `pipeline.yaml →
+> generation` declares, not a cluster LiteLLM proxy; roadmap items 1–7 below
+> are delivered (see [CHANGELOG.md](CHANGELOG.md)) and what is next lives in
+> [ROADMAP.md](ROADMAP.md).
+
 ## Goal
 
 A self-service educational platform that tracks mainstream IT certifications, downloads their public syllabus/objectives, and uses AI to generate a complete course per certification: study content, exercises, and on-demand labs. The student enters their catalog, selects a certification, and has everything ready to study and certify.
