@@ -98,6 +98,9 @@ def lab_up(cert_id: str, topic_id: str) -> None:
         typer.echo(f"Error: {error}", err=True)
         raise typer.Exit(1)
     typer.echo(f"Lab {cert_id}/{topic_id}: {result['state']}")
+    hint = labs.enter_hint(cert_id, topic_id)
+    if hint:
+        typer.echo(f"Enter it:  {hint}")
 
 
 @lab_app.command("down")

@@ -25,6 +25,7 @@ only reads and writes the contract.
 import datetime
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import yaml
@@ -123,11 +124,23 @@ def _up_container(directory: Path, spec: dict, name: str) -> None:
     _run(["docker", "exec", name, "useradd", "-m", "student"])
     script = directory / "break_fix.sh"
     _run(["docker", "cp", str(script), f"{name}:/home/student/break_fix.sh"])
-    result = subprocess.run(
-        ["docker", "exec", "-u", "student", "-w", "/home/student", name, "bash", "break_fix.sh"]
-    )
+    result = subprocess.run(_exec_script_cmd(name, interactive=sys.stdin.isatty()))
     if result.returncode != 0:
         raise LabError("break_fix.sh failed inside the container (see output above).")
+
+
+def _exec_script_cmd(name: str, interactive: bool) -> list[str]:
+    """`docker exec` for break_fix.sh, with the student's stdin attached.
+
+    Most scripts ask for a confirmation first (`read -r -p "... (type SI)"`),
+    and without `-i` the `read` hits EOF, the script prints "Cancelled" and
+    exits 0 — so `teach lab up` reported a running lab in which nothing had
+    been broken. `-t` only when there is a terminal: docker refuses `-t` with a
+    piped stdin ("the input device is not a TTY").
+    """
+    flags = ["-i", "-t"] if interactive else ["-i"]
+    return ["docker", "exec", *flags, "-u", "student", "-w", "/home/student",
+            name, "bash", "break_fix.sh"]
 
 
 def _down_container(name: str) -> None:
@@ -182,6 +195,22 @@ def up(cert_id: str, topic_id: str) -> dict:
         _write_status(directory, "failed", str(error))
         raise
     return _write_status(directory, "running")
+
+
+def enter_hint(cert_id: str, topic_id: str) -> str | None:
+    """The command that opens a shell in a running local lab, or None.
+
+    `lab up` used to stop at "running" and leave the student to guess the
+    container name and that the scenario lives in the `student` account.
+    """
+    directory = lab_dir(cert_id, topic_id)
+    spec = _load_spec(directory)
+    if spec.get("provider", "terraform") != "local":
+        return None
+    name = _lab_name(cert_id, topic_id)
+    if _needs_cluster(directory):
+        return f"kubectl config use-context kind-{name}"
+    return f"docker exec -it -u student -w /home/student {name} bash"
 
 
 def down(cert_id: str, topic_id: str) -> dict:
