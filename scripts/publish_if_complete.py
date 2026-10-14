@@ -50,7 +50,7 @@ def _topic_ids(cert: str) -> list[str]:
     path = REPO / "certs" / f"{cert}.md"
     if not path.exists():
         return []
-    front = yaml.safe_load(path.read_text().split("---")[1]) or {}
+    front = yaml.safe_load(path.read_text(encoding="utf-8").split("---")[1]) or {}
     return [str(t["id"]) for t in front.get("topics") or []]
 
 
@@ -89,7 +89,7 @@ def _record() -> list[str]:
     if not RECORD.exists():
         return []
     try:
-        return list(json.loads(RECORD.read_text()).get("certs") or [])
+        return list(json.loads(RECORD.read_text(encoding="utf-8")).get("certs") or [])
     except (json.JSONDecodeError, OSError):
         return []
 

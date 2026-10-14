@@ -66,7 +66,7 @@ def load(cert_id: str) -> frontmatter.Post:
 
 
 def save(cert_id: str, post: frontmatter.Post) -> None:
-    md_path(cert_id).write_text(frontmatter.dumps(post) + "\n")
+    md_path(cert_id).write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
 
 
 def topics(cert_id: str) -> list[dict]:
@@ -112,12 +112,12 @@ def scaffold(cert_id: str, name: str, exam: str) -> Path:
     if path.exists():
         raise FileExistsError(f"{path} ya existe")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(TEMPLATE.format(cert_id=cert_id, exam=exam, name=name))
+    path.write_text(TEMPLATE.format(cert_id=cert_id, exam=exam, name=name), encoding="utf-8")
     return path
 
 
 def _read(path: Path) -> str | None:
-    return path.read_text() if path.exists() else None
+    return path.read_text(encoding="utf-8") if path.exists() else None
 
 
 def topic_langs(cert_id: str, topic_id: str) -> list[str]:
@@ -152,7 +152,7 @@ def topic_outdated_langs(cert_id: str, topic_id: str) -> list[str]:
     for lang in topic_langs(cert_id, topic_id):
         meta_file = directory / lang / "meta.yaml"
         try:
-            meta = yaml.safe_load(meta_file.read_text()) or {}
+            meta = yaml.safe_load(meta_file.read_text(encoding="utf-8")) or {}
             generated_at = str(meta.get("generated_at") or "")
         except (OSError, yaml.YAMLError):
             generated_at = ""
@@ -184,7 +184,7 @@ def topic_content(cert_id: str, topic_id: str, lang: str = DEFAULT_LANG) -> dict
     meta_file = directory / (fallback or lang) / "meta.yaml"
     if meta_file.exists():
         try:
-            raw = yaml.safe_load(meta_file.read_text()) or {}
+            raw = yaml.safe_load(meta_file.read_text(encoding="utf-8")) or {}
             generated_by = {key: raw.get(key) for key in
                             ("model", "backend", "generated_at", "translated_from")}
             # The official syllabus this topic was written from. Recorded per

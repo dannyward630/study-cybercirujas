@@ -51,7 +51,7 @@ def frozen(cert: str) -> tuple[str | None, str | None]:
     if not path.exists():
         return None, None
     try:
-        front = yaml.safe_load(path.read_text().split("---")[1]) or {}
+        front = yaml.safe_load(path.read_text(encoding="utf-8").split("---")[1]) or {}
     except (IndexError, yaml.YAMLError):
         return None, None
     version = str(front.get("version") or "") or None
@@ -106,7 +106,7 @@ def state(snapshot_date: str | None, upstream_date: str | None,
 
 
 def survey() -> list[dict]:
-    catalog = yaml.safe_load((REPO / "catalog.yaml").read_text()) or {}
+    catalog = yaml.safe_load((REPO / "catalog.yaml").read_text(encoding="utf-8")) or {}
     rows = []
     for cert, entry in (catalog.get("certs") or {}).items():
         entry = entry or {}

@@ -140,7 +140,7 @@ def main() -> int:
     source_path = REPO / "certs" / args.cert / args.topic / args.source_lang / args.kind
     if not source_path.exists():
         raise SystemExit(f"No source to translate: {source_path}")
-    source = source_path.read_text()
+    source = source_path.read_text(encoding="utf-8")
 
     out_dir = Path(args.out) if args.out else REPO / ".study" / f"{args.cert}-{args.topic}"
     out_dir.mkdir(parents=True, exist_ok=True)

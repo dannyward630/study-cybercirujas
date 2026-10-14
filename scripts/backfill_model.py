@@ -32,7 +32,7 @@ def evidence() -> dict[tuple[str, str, str], str]:
     found: dict[tuple[str, str, str], str] = {}
     if not USAGE.exists():
         return found
-    for line in USAGE.read_text().splitlines():
+    for line in USAGE.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
         try:
@@ -64,7 +64,7 @@ def main() -> int:
     fixed = untouched = 0
     for meta_file in sorted((REPO / "certs").glob("*/*/*/meta.yaml")):
         try:
-            meta = yaml.safe_load(meta_file.read_text()) or {}
+            meta = yaml.safe_load(meta_file.read_text(encoding="utf-8")) or {}
         except yaml.YAMLError:
             continue
         current = str(meta.get("model") or "")

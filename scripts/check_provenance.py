@@ -49,7 +49,7 @@ REQUIRED_META = ("backend", "model", "generated_at")
 
 
 def _topics(cert: str) -> list[dict]:
-    front = yaml.safe_load((REPO / "certs" / f"{cert}.md").read_text().split("---")[1])
+    front = yaml.safe_load((REPO / "certs" / f"{cert}.md").read_text(encoding="utf-8").split("---")[1])
     return front.get("topics") or []
 
 
@@ -91,7 +91,7 @@ def check_cert(cert: str, languages: list[str]) -> list[str]:
                 )
                 continue
             try:
-                meta = yaml.safe_load(meta_file.read_text()) or {}
+                meta = yaml.safe_load(meta_file.read_text(encoding="utf-8")) or {}
             except yaml.YAMLError as error:
                 problems.append(f"{cert}/{topic_id} ({lang}): meta.yaml does not parse ({error})")
                 continue

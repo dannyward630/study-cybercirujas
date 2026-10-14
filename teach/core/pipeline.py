@@ -25,7 +25,7 @@ class PipelineError(RuntimeError):
 def load(path: Path | None = None) -> dict:
     file = path or PIPELINE_FILE
     try:
-        data = yaml.safe_load(file.read_text())
+        data = yaml.safe_load(file.read_text(encoding="utf-8"))
     except FileNotFoundError as error:
         raise PipelineError(f"No pipeline definition at {file}") from error
     if not isinstance(data, dict):

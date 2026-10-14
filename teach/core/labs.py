@@ -47,7 +47,7 @@ def _write_status(directory: Path, state: str, detail: str = "") -> dict:
         "detail": detail,
         "updated_at": datetime.datetime.now().isoformat(timespec="seconds"),
     }
-    (directory / "status.yaml").write_text(yaml.safe_dump(status, sort_keys=False))
+    (directory / "status.yaml").write_text(yaml.safe_dump(status, sort_keys=False), encoding="utf-8")
     return status
 
 
@@ -55,7 +55,7 @@ def _load_spec(directory: Path) -> dict:
     spec_file = directory / "lab.yaml"
     if not spec_file.exists():
         raise LabError(f"No lab spec in {directory}. Run: teach cert generate")
-    return yaml.safe_load(spec_file.read_text()) or {}
+    return yaml.safe_load(spec_file.read_text(encoding="utf-8")) or {}
 
 
 # ----------------------------------------------------------- terraform provider
@@ -103,7 +103,7 @@ def _needs_cluster(directory: Path) -> bool:
     itself rather than a separate field in lab.yaml, so the 100+ existing
     lab.yaml files do not have to be regenerated."""
     script = directory / "break_fix.sh"
-    return script.exists() and "kubectl" in script.read_text()
+    return script.exists() and "kubectl" in script.read_text(encoding="utf-8")
 
 
 def _up_container(directory: Path, spec: dict, name: str) -> None:
@@ -337,12 +337,12 @@ def status(cert_id: str, topic_id: str) -> dict:
     status_file = directory / "status.yaml"
     if not status_file.exists():
         return {"state": "none"}
-    cached = yaml.safe_load(status_file.read_text())
+    cached = yaml.safe_load(status_file.read_text(encoding="utf-8"))
     # For the local provider, check the real docker/kind state rather than
     # blindly trusting the last status.yaml written: the container or cluster
     # may have died or been deleted by hand since the last run.
     if cached.get("state") == "running" and (directory / "lab.yaml").exists():
-        spec = yaml.safe_load((directory / "lab.yaml").read_text()) or {}
+        spec = yaml.safe_load((directory / "lab.yaml").read_text(encoding="utf-8")) or {}
         if spec.get("provider") == "local":
             name = _lab_name(cert_id, topic_id)
             live = _status_cluster(name) if _needs_cluster(directory) else _status_container(name)

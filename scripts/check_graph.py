@@ -39,7 +39,7 @@ def main() -> int:
         print("graph: MISSING — build it with `make graph` (AST only, no quota).")
         return fail
 
-    match = re.search(r"Built from commit: `([0-9a-f]+)`", REPORT.read_text())
+    match = re.search(r"Built from commit: `([0-9a-f]+)`", REPORT.read_text(encoding="utf-8"))
     if not match:
         print("graph: present but GRAPH_REPORT.md records no source commit — rebuild with `make graph`.")
         return fail
@@ -64,7 +64,7 @@ def main() -> int:
     last_scan_file = REPO / "graphify-out" / ".last-scan"
     baseline = built_from
     if last_scan_file.exists():
-        scanned = last_scan_file.read_text().strip()
+        scanned = last_scan_file.read_text(encoding="utf-8").strip()
         if re.fullmatch(r"[0-9a-f]{7,40}", scanned):
             if head == scanned:
                 print(f"graph: OK — scanned at HEAD ({scanned[:8]}); "
@@ -78,7 +78,7 @@ def main() -> int:
               "rebuild with `make graph`.")
         return fail
     ignored = [line.strip().rstrip("/") for line in
-               (REPO / ".graphifyignore").read_text().splitlines()
+               (REPO / ".graphifyignore").read_text(encoding="utf-8").splitlines()
                if line.strip() and not line.startswith("#")] if (REPO / ".graphifyignore").exists() else []
     covered = [f for f in diff.stdout.splitlines()
                if f and not any(f == p or f.startswith(p + "/") for p in ignored)

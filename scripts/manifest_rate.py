@@ -55,7 +55,7 @@ def main() -> int:
     for meta_path in sorted(REPO.glob("certs/*/*/*/meta.yaml")):
         lang_dir = meta_path.parent
         try:
-            meta = yaml.safe_load(meta_path.read_text()) or {}
+            meta = yaml.safe_load(meta_path.read_text(encoding="utf-8")) or {}
         except yaml.YAMLError:
             continue
         when = str(meta.get("generated_at") or "")[:10]

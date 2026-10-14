@@ -1,0 +1,21 @@
+name: Translation
+description: A translation is wrong, unclear, or missing
+labels: [i18n]
+body:
+  - type: input
+    id: where
+    attributes:
+      label: Certification, topic and language
+      placeholder: "cks 3.2 es"
+    validations: {required: true}
+  - type: textarea
+    id: problem
+    attributes:
+      label: What reads wrong, and how it should read
+    validations: {required: true}
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: Pull request
+      options:
+        - label: I can send the fix myself (see CONTRIBUTING.md)

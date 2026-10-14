@@ -32,7 +32,7 @@ TEACH = REPO / ".venv" / "bin" / "teach"
 def _cert_topic_ids(cert: str) -> list[str]:
     """Ids de todos los topics del temario (frontmatter del .md), para poder
     detectar labs faltantes sin depender de qué haya en disco."""
-    md = (REPO / "certs" / f"{cert}.md").read_text()
+    md = (REPO / "certs" / f"{cert}.md").read_text(encoding="utf-8")
     front = yaml.safe_load(md.split("---")[1])
     return [str(t["id"]) for t in front.get("topics", [])]
 
@@ -419,7 +419,7 @@ def _record_quota_block(output: str) -> None:
                                     Path.home() / ".local/state")) / "teach-plat"
         state.mkdir(parents=True, exist_ok=True)
         line = (output or "").strip().splitlines()[-1][:400] if output else "fatal"
-        with (state / "quota-history.jsonl").open("a") as handle:
+        with (state / "quota-history.jsonl").open("a", encoding="utf-8") as handle:
             handle.write(json.dumps({
                 "at": _dt.datetime.now().isoformat(timespec="seconds"),
                 "status": "exhausted", "backend": "claude",

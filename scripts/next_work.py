@@ -66,7 +66,7 @@ def survey() -> list[dict]:
 def _topic_count(cert: str) -> int:
     import yaml
     try:
-        front = yaml.safe_load((REPO / "certs" / f"{cert}.md").read_text().split("---")[1])
+        front = yaml.safe_load((REPO / "certs" / f"{cert}.md").read_text(encoding="utf-8").split("---")[1])
         return len(front.get("topics") or [])
     except (FileNotFoundError, IndexError, KeyError):
         return 0

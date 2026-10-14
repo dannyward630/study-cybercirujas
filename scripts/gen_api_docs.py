@@ -56,7 +56,7 @@ def main() -> int:
     if not DOC.exists():
         print(f"{DOC} does not exist.")
         return 1
-    text = DOC.read_text()
+    text = DOC.read_text(encoding="utf-8")
     if START not in text or END not in text:
         print(f"Markers {START} / {END} not found in {DOC.name}.")
         return 1

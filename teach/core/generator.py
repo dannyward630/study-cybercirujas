@@ -139,7 +139,7 @@ def _record_usage(envelope: dict) -> None:
             "models": models,
         }
         USAGE_LOG.parent.mkdir(parents=True, exist_ok=True)
-        with USAGE_LOG.open("a") as handle:
+        with USAGE_LOG.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(row) + "\n")
     except Exception:
         pass
@@ -173,7 +173,7 @@ def _record_plain_usage(backend: str, model: str | None, *,
             "output_chars": output_chars,
         }
         USAGE_LOG.parent.mkdir(parents=True, exist_ok=True)
-        with USAGE_LOG.open("a") as handle:
+        with USAGE_LOG.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(row) + "\n")
     except Exception:
         pass
@@ -476,7 +476,7 @@ def _antigravity_completer() -> tuple[Completer, dict]:
 
     def complete(system: str, user: str) -> str:
         import hashlib
-        cache = json.loads(cache_file.read_text()) if cache_file.exists() else {}
+        cache = json.loads(cache_file.read_text(encoding="utf-8")) if cache_file.exists() else {}
         # The key covers `system`, not just `user`: language lives only in the
         # system prompt ("Escribís en English"), while the user prompt is
         # identical across languages for a given topic. Keyed on `user` alone,
@@ -487,13 +487,13 @@ def _antigravity_completer() -> tuple[Completer, dict]:
             return cache[key]
 
         if resp_file.exists():
-            content = resp_file.read_text().strip()
+            content = resp_file.read_text(encoding="utf-8").strip()
             resp_file.unlink()
             cache[key] = content
-            cache_file.write_text(json.dumps(cache, indent=2))
+            cache_file.write_text(json.dumps(cache, indent=2), encoding="utf-8")
             return content
 
-        prompt_file.write_text(json.dumps({"system": system, "user": user}, indent=2))
+        prompt_file.write_text(json.dumps({"system": system, "user": user}, indent=2), encoding="utf-8")
         raise GeneratorConfigError(
             "Antigravity backend prompt written to /tmp/antigravity_prompt.json. "
             "Awaiting response in /tmp/antigravity_response.txt"
@@ -643,7 +643,7 @@ def generate_topic(
         sibling = lang_dir / ("exercises.md" if kind == "content" else "content.md")
         if not path.exists() or sibling.exists():
             return None  # nothing there, or the topic is complete -> honour --force
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         if quality.check(kind, text) or _RECAP_RE.search(text.strip().splitlines()[0] if text.strip() else ""):
             return None
         return text
@@ -671,7 +671,7 @@ def generate_topic(
         # paid completions; writing here costs nothing and caps the loss at one.
         _reject_if_substandard(content, "content", topic_id, lang)
         lang_dir.mkdir(parents=True, exist_ok=True)
-        (lang_dir / "content.md").write_text(content)
+        (lang_dir / "content.md").write_text(content, encoding="utf-8")
         _write_meta(lang_dir, lang, backend_meta, topic)
 
     _usage_context["kind"] = "exercises"
@@ -694,7 +694,7 @@ def generate_topic(
     # be reported complete. Fail hard: nothing is saved half-done.
     _reject_if_substandard(exercises, "exercises", topic_id, lang)
 
-    (lang_dir / "exercises.md").write_text(exercises)
+    (lang_dir / "exercises.md").write_text(exercises, encoding="utf-8")
     # Provenance is written with the content, not after the lab. A process that
     # died between the two left files nobody could trace — cks/5.3/en and
     # lpi-010-160/1.2/fr both ended up that way, and check_provenance.py now
@@ -724,7 +724,7 @@ def generate_topic(
             "el script break&fix",
         )
         lab_dir.mkdir(parents=True, exist_ok=True)
-        (lab_dir / "break_fix.sh").write_text(break_fix)
+        (lab_dir / "break_fix.sh").write_text(break_fix, encoding="utf-8")
         from . import labs
         lab_spec = labs.default_spec(cert_id, topic_id, topic["title"])
         (lab_dir / "lab.yaml").write_text(
@@ -926,7 +926,7 @@ def translate_topic(
     attempts = max(1, int(pipeline.budget().get("retry_attempts") or 1))
     written = {}
     for kind in ("content.md", "exercises.md"):
-        source = (source_dir / kind).read_text()
+        source = (source_dir / kind).read_text(encoding="utf-8")
         for attempt in range(1, attempts + 1):
             _usage_context.clear()
             _usage_context.update({"op": "translate", "cert": cert_id,
@@ -946,7 +946,7 @@ def translate_topic(
                 # url or WHAT the model wrote instead.
                 debris = pipeline.REPO / ".rejected" / f"{cert_id}-{topic_id}-{lang}-{kind}"
                 debris.parent.mkdir(exist_ok=True)
-                debris.write_text(f"<!-- REJECTED: {error} -->\n{result}")
+                debris.write_text(f"<!-- REJECTED: {error} -->\n{result}", encoding="utf-8")
                 if attempt == attempts:
                     raise GeneratorConfigError(
                         f"{kind}: {error} — rejected text kept in "
@@ -959,7 +959,7 @@ def translate_topic(
     target = directory / lang
     target.mkdir(parents=True, exist_ok=True)
     for kind, text in written.items():
-        (target / kind).write_text(text)
+        (target / kind).write_text(text, encoding="utf-8")
     (target / "meta.yaml").write_text(yaml.safe_dump({
         "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
         "lang": lang,

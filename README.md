@@ -4,6 +4,9 @@
 > cloud, IA), en inglés y español. Usalo en el sitio, en tu máquina con Docker,
 > o sin internet con un modelo local — todo explicado abajo.
 
+> **Knowledge has no owner and no borders. We build it together, for everyone.**
+> *El conocimiento no tiene dueño ni fronteras. Lo construimos entre todos, para todos.*
+
 **Site: <https://study.cybercirujas.club>** · free, no account, no tracking
 
 ![The site: certifications grouped by family, with their official syllabus](docs/img/site.png)
@@ -30,6 +33,14 @@ The project treats a curriculum like software — **Curriculum-as-Code**:
 - **everything else is a projection**: the site, the REST API, the Docker image,
   [STATUS.md](STATUS.md) and the table below are derived from the same files.
   No database, nothing hand-maintained twice.
+
+**The principles** ([docs/PRINCIPLES.md](docs/PRINCIPLES.md)): *information
+sovereignty* — everything you need runs on your own machine, with no account
+and no third party; *determinism* — the site, the API, the CLI, the validators
+and the labs give the same result every time and need no AI, and CI proves it
+with the network blocked (`make determinism`); *with AI or without it, the same
+pipeline and the same validator* — AI only drafts and translates, and its output
+meets the same checks as anything written by hand.
 
 **All study material is AI-generated** — read [the disclosure](#ai-generated-content)
 before relying on it.
@@ -103,6 +114,15 @@ git clone https://github.com/villadalmine/study-cybercirujas.git
 cd study-cybercirujas
 make setup        # creates .venv and installs the `teach` CLI (~20 s)
 make serve        # site + API on http://127.0.0.1:8000
+```
+
+**Windows without WSL** works for studying (site, API, CLI), not for the
+`make` targets or the labs. In PowerShell, from the clone:
+
+```powershell
+py -m venv .venv
+.venv\Scripts\pip install -e .
+.venv\Scripts\teach serve        # http://127.0.0.1:8000
 ```
 
 The clone is ~130 MB. `make serve` binds to `127.0.0.1`; use
@@ -293,8 +313,12 @@ calls a model and is for maintainers: [docs/OPERATING.md](docs/OPERATING.md).
 - **Translation fixes** are welcome as pull requests editing the
   `content.md` / `exercises.md` of that language. Keep code blocks, commands and
   URLs exactly as in the English source.
-- **Code and checks**: `make setup && make verify-ci` runs the same free checks
-  as CI (no API key, no model). See [DEVELOPERS.md](DEVELOPERS.md).
+- **Code and checks**: `make setup && make test` runs the same offline checks
+  as CI (no API key, no model).
+
+Everything else — conventions, provenance for hand edits, new labs, the test
+matrix — is in **[CONTRIBUTING.md](CONTRIBUTING.md)**. How decisions are made:
+[GOVERNANCE.md](GOVERNANCE.md). [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## AI-generated content
 
@@ -317,6 +341,7 @@ project's transparency layer under
 
 | Document | What it is |
 |---|---|
+| [CONTRIBUTING.md](CONTRIBUTING.md) · [GOVERNANCE.md](GOVERNANCE.md) · [docs/PRINCIPLES.md](docs/PRINCIPLES.md) | how to contribute and which tests must pass · how decisions are made · the rules the project holds itself to |
 | [docs/OPERATING.md](docs/OPERATING.md) | generating, checking and publishing: `make next`, milestones, backends, `.env`, the quality ladder, deploy to Kubernetes, the unattended timer |
 | [WORKFLOW.md](WORKFLOW.md) | the content cycle (snapshot → generate → audit → publish) and its failure modes |
 | [DEVELOPERS.md](DEVELOPERS.md) | the API, running your own copy, building on the corpus |

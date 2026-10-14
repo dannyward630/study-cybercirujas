@@ -24,7 +24,7 @@ def load() -> dict:
     path = catalog_path()
     if not path.exists():
         return {"certs": {}}
-    data = yaml.safe_load(path.read_text()) or {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     data.setdefault("certs", {})
     return data
 
@@ -58,7 +58,7 @@ def load_models(path: Path | None = None) -> dict:
     path = path or models_path()
     if not path.exists():
         return {"checked": None, "tiers": {}}
-    return yaml.safe_load(path.read_text()) or {"checked": None, "tiers": {}}
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {"checked": None, "tiers": {}}
 
 
 def save_models(data: dict, path: Path | None = None) -> None:
@@ -71,11 +71,11 @@ def save_models(data: dict, path: Path | None = None) -> None:
     path = path or models_path()
     head = ""
     if path.exists():
-        head = "\n".join(line for line in path.read_text().splitlines()
+        head = "\n".join(line for line in path.read_text(encoding="utf-8").splitlines()
                          if line.startswith("#"))
     body = yaml.dump(data, Dumper=_BlockDumper, sort_keys=False,
                      allow_unicode=True, default_flow_style=False)
-    path.write_text((head + "\n\n" if head else "") + body)
+    path.write_text((head + "\n\n" if head else "") + body, encoding="utf-8")
 
 
 def list_certs() -> dict:

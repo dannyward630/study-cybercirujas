@@ -22,13 +22,38 @@ tested with `exists()` would.
 from __future__ import annotations
 
 import contextlib
-import fcntl
+try:
+    import fcntl
+except ImportError:  # Windows: same advisory lock through msvcrt, so the CLI imports there too
+    fcntl = None
+    import msvcrt
 import os
 from collections.abc import Iterator
 from pathlib import Path
 
 CLAIM_DIR = Path.home() / ".local" / "state" / "teach-plat" / "claims"
 
+
+
+def _try_lock(handle) -> bool:
+    """Non-blocking exclusive lock. False if someone else holds it."""
+    try:
+        if fcntl is not None:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        else:
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        return True
+    except BlockingIOError if fcntl is not None else OSError:
+        return False
+
+
+def _unlock(handle) -> None:
+    if fcntl is not None:
+        fcntl.flock(handle, fcntl.LOCK_UN)
+    else:
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
 
 def _path(cert: str, topic: str, lang: str) -> Path:
     safe = f"{cert}--{topic}--{lang}".replace("/", "_")
@@ -44,11 +69,9 @@ def claim(cert: str, topic: str, lang: str) -> Iterator[bool]:
     apart naturally rather than queue behind each other.
     """
     CLAIM_DIR.mkdir(parents=True, exist_ok=True)
-    handle = _path(cert, topic, lang).open("w")
+    handle = _path(cert, topic, lang).open("w", encoding="utf-8")
     try:
-        try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
+        if not _try_lock(handle):
             yield False
             return
         handle.write(f"{os.getpid()}\n")
@@ -66,12 +89,10 @@ def is_claimed(cert: str, topic: str, lang: str) -> bool:
     if not path.exists():
         return False
     try:
-        with path.open("r+") as handle:
-            try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
+        with path.open("r+", encoding="utf-8") as handle:
+            if not _try_lock(handle):
                 return True
-            fcntl.flock(handle, fcntl.LOCK_UN)
+            _unlock(handle)
     except OSError:
         return False
     return False

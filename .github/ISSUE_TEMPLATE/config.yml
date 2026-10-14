@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Proposal (RFC) — change a rule, add a certification family or a language
+    url: https://github.com/villadalmine/study-cybercirujas/blob/main/GOVERNANCE.md#proposals-rfcs--for-anything-that-changes-how-the-project-works
+    about: Read the proposal process, then open an issue titled "RFC:" with the label proposal.

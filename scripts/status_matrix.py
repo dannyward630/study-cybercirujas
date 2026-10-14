@@ -39,7 +39,7 @@ def cert_topics(cert_id: str) -> list[dict]:
     path = REPO / "certs" / f"{cert_id}.md"
     if not path.exists():
         return []
-    front = yaml.safe_load(path.read_text().split("---")[1])
+    front = yaml.safe_load(path.read_text(encoding="utf-8").split("---")[1])
     return front.get("topics") or []
 
 
@@ -111,7 +111,7 @@ def refresh() -> bool:
     to be wrong. STATUS.md sat a day stale reporting kcsa at 2/42 when it was
     42/42, because the one path that does most of the generating did not call it.
     """
-    before = STATUS.read_text() if STATUS.exists() else None
+    before = STATUS.read_text(encoding="utf-8") if STATUS.exists() else None
     _write()
     # MODELS.md rides along: same triggers, same philosophy (derived from disk
     # and records, deterministic, never edited). Guarded like _record_usage —
@@ -122,7 +122,7 @@ def refresh() -> bool:
         model_comparison.write()
     except Exception as error:  # noqa: BLE001
         print(f"warning: MODELS.md not refreshed ({error})")
-    return STATUS.read_text() != before
+    return STATUS.read_text(encoding="utf-8") != before
 
 
 def check() -> list[str]:
@@ -141,7 +141,7 @@ def check() -> list[str]:
 
     Does not write, so it is safe in a gate.
     """
-    current = (STATUS.read_text() if STATUS.exists() else "").split(SPEND_MARKER)[0]
+    current = (STATUS.read_text(encoding="utf-8") if STATUS.exists() else "").split(SPEND_MARKER)[0]
     expected = _render().split(SPEND_MARKER)[0]
     if current == expected:
         return []
@@ -156,7 +156,7 @@ def _write() -> None:
 
 
 def _render() -> str:
-    catalog = yaml.safe_load((REPO / "catalog.yaml").read_text())
+    catalog = yaml.safe_load((REPO / "catalog.yaml").read_text(encoding="utf-8"))
     lines = [
         "# Content Status",
         "",

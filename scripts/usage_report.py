@@ -31,7 +31,7 @@ def rows(since: str | None) -> list[dict]:
             "instrumentation was added on 2026-08-05 is in there."
         )
     out = []
-    for line in LOG.read_text().splitlines():
+    for line in LOG.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
         try:

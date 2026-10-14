@@ -99,7 +99,7 @@ def record(status: int, detail: str, backend: str) -> None:
         "status": {AVAILABLE: "available", EXHAUSTED: "exhausted", BROKEN: "error"}[status],
         "detail": detail,
     }
-    with HISTORY.open("a") as handle:
+    with HISTORY.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(entry) + "\n")
 
 
@@ -107,7 +107,7 @@ def show_history(count: int) -> None:
     if not HISTORY.exists():
         print("No probes recorded yet.")
         return
-    lines = HISTORY.read_text().splitlines()[-count:]
+    lines = HISTORY.read_text(encoding="utf-8").splitlines()[-count:]
     previous = None
     for line in lines:
         entry = json.loads(line)

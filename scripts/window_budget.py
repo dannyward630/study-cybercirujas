@@ -42,7 +42,7 @@ def _load(path: Path) -> list[dict]:
     if not path.exists():
         return []
     out = []
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         if line.strip():
             try:
                 out.append(json.loads(line))
