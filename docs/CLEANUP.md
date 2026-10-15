@@ -295,24 +295,25 @@ call and is listed here so it is not lost.
 
 ## `graphify-out/` and `openwiki/` — what they are and whether they belong
 
-**`graphify-out/`** (1.7 MB, 70 generated wiki pages + `graph.json`) is a
-tree-sitter map of the *machinery* (`teach/`, `scripts/`), committed so agents
-can query it over MCP. Facts: the committed graph is from 2026-09-18 and
-`scripts/check_graph.py` on a fresh clone reports it **stale** (code changed
-on 2026-09-29); the post-commit hook only refreshes it on a machine that has
-graphify installed, so in practice it lags. The `wiki/` pages are generated
-names like `Agy_Test_Script.md` — noise for a human visitor.
+**`graphify-out/`** (`graph.json`, `GRAPH_REPORT.md`, generated wiki pages) is
+a tree-sitter map of the *machinery* (`teach/`, `scripts/`, tests, configs and
+the docs), so agents can query it over MCP. graphify is a free pip install
+(no LLM, no key), pinned in `make graph-setup`.
+
+**Decided (2026-10-15, Rino: "dale la a"): `graphify-out/` stays committed.**
+Every PR that touches code (`teach/`, `scripts/`) runs `make graph` and commits
+`graphify-out/`; CI's `docs-consistency` job rebuilds the graph and fails the
+PR when the committed one is not what the tree builds
+(`scripts/check_graph.py --regenerate`). The rejected alternative was to stop
+committing it and build it in CI or on demand.
 
 **`openwiki/`** holds only `INSTRUCTIONS.md`: the scope file for an OpenWiki run
 that costs API credits and has never produced a committed wiki. It is a
-configuration for a tool that is not in use.
+configuration for a tool that is not in use. It is never regenerated in a PR, because it
+costs credits; `make wiki` stays a manual, owner-only command.
 
-Recommendation (nothing removed — owner decides):
+Recommendations still open (nothing removed — owner decides):
 
-- **Stop committing generated graph output.** Either gitignore
-  `graphify-out/wiki/` (keep `graph.json` if agents rely on it), or build the
-  graph in CI and attach it to a release. A committed artifact that is stale
-  by default teaches readers to distrust it.
 - **Where a graph would pay off is the curriculum, not the code.** The repo
   already has the data for a *curriculum graph*: certification → domain →
   topic → official source, plus `requires` between certifications and the
