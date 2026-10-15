@@ -197,7 +197,7 @@ def probe_tools(client: httpx.Client, key: str, model: str,
 
     # Hand back the same excerpt phase 2 would, and see whether the answer uses
     # it. Graded by the same substring as the comprehension pass.
-    fixture = yaml.safe_load(MATERIAL.read_text())
+    fixture = yaml.safe_load(MATERIAL.read_text(encoding="utf-8"))
     excerpt = material("en", fixture)
     call = (first.get("tool_calls") or [{}])[0]
     conversation = [
@@ -297,7 +297,7 @@ def material(lang: str, fixture: dict) -> str:
             / "content.md")
     if not path.exists():
         return ""
-    text = path.read_text()[:int(fixture["excerpt_chars"])]
+    text = path.read_text(encoding="utf-8")[:int(fixture["excerpt_chars"])]
     cut = text[:text.rfind("\n")] if "\n" in text else text
     return cut.rstrip()
 
@@ -775,7 +775,7 @@ def main() -> int:
     frozen = catalog.load_models(CATALOGUE)
     tiers = frozen.get("tiers") or {}
     langs = [x for x in args.langs.split(",") if x]
-    fixture = yaml.safe_load(MATERIAL.read_text()) if langs else None
+    fixture = yaml.safe_load(MATERIAL.read_text(encoding="utf-8")) if langs else None
     if fixture:
         missing = [x for x in langs if x not in fixture["questions"]]
         if missing:

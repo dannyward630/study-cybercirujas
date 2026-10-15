@@ -5,7 +5,12 @@ FROM python:3.12-slim
 WORKDIR /app
 ENV TEACH_ROOT=/app PYTHONUNBUFFERED=1
 
-COPY pyproject.toml README.md ./
+# README.md is not copied: pyproject.toml declares no readme, so the build
+# never needed it, and copying it made every README edit change the image
+# while docker.yml did not rebuild for it. What the image contains and what
+# triggers a rebuild are now the same list (docker.yml → paths), which is
+# also what scripts/check_pr.py reads to label a PR site:image-rebuild.
+COPY pyproject.toml ./
 COPY teach/ teach/
 RUN pip install --no-cache-dir .
 

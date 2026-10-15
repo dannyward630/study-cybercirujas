@@ -94,7 +94,7 @@ def spec_kinds(version: str) -> set[tuple[str, str]]:
         print(f"  fetching the {version} OpenAPI spec (once) …", file=sys.stderr)
         with urllib.request.urlopen(url, timeout=120) as response:
             cached.write_bytes(response.read())
-    spec = json.loads(cached.read_text())
+    spec = json.loads(cached.read_text(encoding="utf-8"))
 
     pairs: set[tuple[str, str]] = set()
     for definition in (spec.get("definitions") or {}).values():
@@ -107,7 +107,7 @@ def spec_kinds(version: str) -> set[tuple[str, str]]:
 
 
 def tracked_versions() -> dict[str, str]:
-    catalog = yaml.safe_load((REPO / "catalog.yaml").read_text()) or {}
+    catalog = yaml.safe_load((REPO / "catalog.yaml").read_text(encoding="utf-8")) or {}
     entries = catalog.get("certs") or catalog
     out = {}
     for cert, entry in entries.items():

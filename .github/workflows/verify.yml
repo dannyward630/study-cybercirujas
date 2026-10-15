@@ -18,6 +18,11 @@ on:
   push:
     branches: [main]
   pull_request:
+    # `edited` re-runs pr-format when the title or description changes;
+    # without it a corrected description stayed red and an edited one kept
+    # the old green verdict (review on #1). verify and e2e skip `edited`:
+    # the code did not change.
+    types: [opened, synchronize, reopened, edited]
   workflow_dispatch:
 
 permissions:
@@ -25,11 +30,13 @@ permissions:
 
 concurrency:
   # A newer push makes the older run irrelevant; cancel it rather than queue.
-  group: verify-${{ github.ref }}
+  # A description edit must not cancel a code run on the same ref.
+  group: verify-${{ github.ref }}-${{ github.event.action == 'edited' && 'edited' || 'code' }}
   cancel-in-progress: true
 
 jobs:
   verify:
+    if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -45,24 +52,12 @@ jobs:
           .venv/bin/pip install -q -e .
 
       - name: Verify
-        # `make verify` minus the three checks that cannot hold in CI:
-        #   check_units    reads ~/.config/systemd — the workstation's units
-        #   check_config   compares against usage.jsonl, which is local state
-        #   status_matrix  counts rendered videos, and `media/**/*.mp4` is
-        #                  gitignored (they are large), so a clean checkout has
-        #                  none and every video column reads as missing
-        # All three describe THIS machine, not the commit. Found by this
-        # workflow's own first run, which is the point of having it.
-        run: |
-          .venv/bin/python3 scripts/quality_report.py
-          .venv/bin/python3 scripts/check_manifests.py
-          .venv/bin/python3 scripts/check_k8s_apis.py
-          .venv/bin/python3 scripts/check_provenance.py
-          .venv/bin/python3 scripts/check_sources.py
-          .venv/bin/python3 scripts/check_versions.py
-          .venv/bin/python3 scripts/check_syllabus.py
-          .venv/bin/python3 scripts/gen_api_docs.py --check
-          .venv/bin/python3 -m unittest discover tests
+        # One definition, in the Makefile: `make verify-ci` is `make verify`
+        # minus the checks that describe the owner's workstation rather than
+        # the commit (installed systemd units, the local usage log, rendered
+        # videos, the optional code graph). A contributor runs the same target
+        # locally and gets the same verdict.
+        run: make verify-ci
 
       - name: Secrets
         # The same shapes the pre-commit hook refuses, in case a clone never
@@ -76,3 +71,58 @@ jobs:
             exit 1
           fi
           echo "No key-shaped strings found."
+
+  e2e:
+    # The newcomer's path, end to end: clone, make setup, make serve, the
+    # site, the API, the CLI, and a break-and-fix lab in Docker. Slow (a pip
+    # install and a container), so it runs beside verify rather than inside it.
+    if: github.event.action != 'edited'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the script clones this checkout; a full history clones cleanly
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Clone and run, as a newcomer would
+        run: make test-e2e
+
+  pr-format:
+    # The PR description is part of the change: required sections, a
+    # Conventional Commit title, the site impact (computed from the files,
+    # declared in the PR), and declared provenance that matches the meta.yaml
+    # of every topic the PR touches. Offline, no model. Labels the PR
+    # site:none or site:image-rebuild with the built-in token — no bot.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check the PR description
+        run: |
+          pip install -q pyyaml
+          python3 scripts/check_pr.py --event "$GITHUB_EVENT_PATH"             --base "origin/${{ github.base_ref }}" --label-file site-label.txt
+      - name: Label the site impact
+        # Runs even when the description check fails: the label is a fact
+        # about the files. A fork's token cannot write labels; that is fine.
+        if: always() && hashFiles('site-label.txt') != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          label="$(cat site-label.txt)"
+          other=$([ "$label" = "site:none" ] && echo "site:image-rebuild" || echo "site:none")
+          gh label create "$label" --force --color "$([ "$label" = "site:none" ] && echo 0e8a16 || echo d93f0b)"             --description "set by scripts/check_pr.py from the changed files"
+          gh pr edit "${{ github.event.pull_request.number }}" --add-label "$label" --remove-label "$other" ||             gh pr edit "${{ github.event.pull_request.number }}" --add-label "$label"

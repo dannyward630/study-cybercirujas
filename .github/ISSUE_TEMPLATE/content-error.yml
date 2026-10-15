@@ -1,0 +1,27 @@
+name: Content error
+description: Something in the study material is wrong or outdated
+labels: [content]
+body:
+  - type: input
+    id: where
+    attributes:
+      label: Certification, topic and language
+      placeholder: "cka 1.1 es"
+    validations: {required: true}
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What is wrong
+      description: Quote the sentence, command or manifest.
+    validations: {required: true}
+  - type: input
+    id: source
+    attributes:
+      label: Official source that shows it
+      description: Vendor or project documentation. The link is what makes a report actionable.
+      placeholder: https://kubernetes.io/docs/...
+    validations: {required: true}
+  - type: textarea
+    id: fix
+    attributes:
+      label: Suggested correction (optional)

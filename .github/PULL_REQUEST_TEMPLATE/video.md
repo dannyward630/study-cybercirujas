@@ -1,0 +1,56 @@
+<!-- Title: a Conventional Commit, e.g. "feat(video): ckne 1.1 in English". English is the standard;
+     a description in your own language is welcome too. Every section below is
+     required — scripts/check_pr.py fails the PR if one is missing or empty. -->
+
+## What and why
+
+<!-- One concern per PR. Link the issue or RFC it answers. -->
+
+## Kind
+
+video — certification / topic / language: 
+- Site: none | image-rebuild  <!-- computed by scripts/check_pr.py from the changed files; see CONTRIBUTING → Merging and deploying the site -->
+
+## Provenance
+
+<!-- Who or what wrote it. For AI, these must match meta.yaml of every topic you touch. -->
+- Author: human | ai
+- Backend: none | claude | ...
+- Model: none | <model id of the script>
+- Date: YYYY-MM-DD
+- Cost: <!-- e.g. "subscription quota, 1 window" / "$0.07 API" / "none" -->
+- Official source: <!-- vendor/project documentation this is based on -->
+
+## Evidence
+
+<!-- Commands you ran and their short output. -->
+```
+make test
+...
+teach cert video-script ...
+teach cert video ...
+```
+
+## Video
+
+- Duration: 
+- Language of the audio: 
+- Screenshot of a frame: <!-- drag an image here -->
+- Rendered with: <!-- TTS voice, ffmpeg version, threads -->
+
+## How to test it from a clean clone
+
+```bash
+git clone https://github.com/villadalmine/study-cybercirujas.git && cd study-cybercirujas
+git fetch origin pull/<N>/head:pr && git checkout pr
+make setup && make test
+teach cert video <cert> --topic <id> --lang <lang>
+```
+
+## Risk and rollback
+
+<!-- What could break, for whom, and how to undo it (usually: revert this PR). -->
+
+## Depends on
+
+<!-- "#N", or "nothing". -->

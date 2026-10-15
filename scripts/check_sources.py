@@ -45,7 +45,7 @@ REFS_HEADING = re.compile(
 
 def catalogue() -> tuple[dict[str, str], set[str], dict]:
     """(domain -> project, neutral domains, raw config)."""
-    data = yaml.safe_load(CATALOGUE.read_text()) or {}
+    data = yaml.safe_load(CATALOGUE.read_text(encoding="utf-8")) or {}
     owner: dict[str, str] = {}
     for project, config in (data.get("projects") or {}).items():
         for domain in (config or {}).get("domains") or []:
@@ -74,7 +74,7 @@ def duplicate_keys(path: Path) -> list[str]:
     """
     import re
     from collections import Counter
-    keys = re.findall(r"^  ([a-z0-9-]+):", path.read_text(), re.M)
+    keys = re.findall(r"^  ([a-z0-9-]+):", path.read_text(encoding="utf-8"), re.M)
     return sorted(k for k, n in Counter(keys).items() if n > 1)
 
 

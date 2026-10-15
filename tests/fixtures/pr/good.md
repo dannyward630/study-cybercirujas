@@ -1,0 +1,37 @@
+## What and why
+
+Fixes the default reclaim policy in CKA 1.1 (English).
+
+## Kind
+
+content — cka / 1.1 / en
+- Site: image-rebuild
+
+## Provenance
+
+- Author: ai
+- Backend: claude
+- Model: claude
+- Date: 2026-07-16
+- Cost: none
+- Official source: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+
+## Evidence
+
+```
+scripts/check_provenance.py   -> OK
+```
+
+## How to test it from a clean clone
+
+```bash
+make setup && make test
+```
+
+## Risk and rollback
+
+Content only; revert the PR.
+
+## Depends on
+
+nothing

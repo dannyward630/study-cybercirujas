@@ -105,7 +105,7 @@ def main() -> int:
         random.seed(11)
         urls = sorted(random.sample(urls, args.sample))
 
-    cache = json.loads(CACHE.read_text()) if CACHE.exists() else {}
+    cache = json.loads(CACHE.read_text(encoding="utf-8")) if CACHE.exists() else {}
     print(f"{len(by_url)} unique citations; checking {len(urls)}", flush=True)
 
     broken: list[tuple[str, int | str, list[str]]] = []

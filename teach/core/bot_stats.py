@@ -63,7 +63,7 @@ def _blank() -> dict:
 
 def load() -> dict:
     try:
-        data = json.loads(path().read_text())
+        data = json.loads(path().read_text(encoding="utf-8"))
     except Exception:                                             # noqa: BLE001
         return _blank()
     return data if isinstance(data, dict) and "models" in data else _blank()
@@ -133,5 +133,5 @@ def _write(data: dict) -> None:
     target = path()
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=1, sort_keys=True))
+    tmp.write_text(json.dumps(data, indent=1, sort_keys=True), encoding="utf-8")
     tmp.replace(target)

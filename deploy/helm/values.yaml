@@ -4,7 +4,7 @@
 image:
   # Cluster real: build in-cluster (Kaniko) → registry interno, como online-game:
   #   repository: registry.registry:5000/teach-plat
-  repository: ghcr.io/villadalmine/teach-plat
+  repository: ghcr.io/villadalmine/study-cybercirujas
   tag: "latest"
   pullPolicy: Always
 

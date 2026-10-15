@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: How decisions are made (GOVERNANCE.md)
+    url: https://github.com/villadalmine/study-cybercirujas/blob/main/GOVERNANCE.md
+    about: Read this before opening a Proposal (RFC).

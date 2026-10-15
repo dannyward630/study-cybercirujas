@@ -1,0 +1,21 @@
+name: Bug
+description: The site, the API, the CLI or a check misbehaves
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations: {required: true}
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Commands from a fresh clone if you can.
+      render: shell
+    validations: {required: true}
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: "Ubuntu 24.04 (WSL), Python 3.12, Docker 29 / the site / the GHCR image"

@@ -73,7 +73,7 @@ USER_AGENT = "teach-plat syllabus check (+https://github.com/villadalmine)"
 
 def load_syllabus(path: Path) -> dict:
     try:
-        return yaml.safe_load(path.read_text().split("---")[1]) or {}
+        return yaml.safe_load(path.read_text(encoding="utf-8").split("---")[1]) or {}
     except (IndexError, yaml.YAMLError):
         return {}
 

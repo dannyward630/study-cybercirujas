@@ -172,6 +172,11 @@ def _refresh_live(force: bool = False) -> None:
     """
     import time
 
+    # TEACH_OFFLINE=1: serve the frozen catalogue and never call out. Studying
+    # must not depend on a third party, and the determinism tests run the API
+    # with external network blocked to prove it (tests/test_determinism.py).
+    if os.environ.get("TEACH_OFFLINE") == "1":
+        return
     age = None if _LIVE["checked_at"] is None else time.time() - _LIVE["checked_at"]
     if not force and age is not None and age < LIVE_MAX_AGE:
         return

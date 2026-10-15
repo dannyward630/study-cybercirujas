@@ -292,7 +292,7 @@ def generate_script(
         "scenes": scenes,
     }
     out_dir.mkdir(parents=True, exist_ok=True)
-    script_path.write_text(yaml.safe_dump(script, sort_keys=False, allow_unicode=True))
+    script_path.write_text(yaml.safe_dump(script, sort_keys=False, allow_unicode=True), encoding="utf-8")
     return {"written": str(script_path)}
 
 
@@ -390,7 +390,7 @@ def generate_cert_script(
     }
     script = {"cert": cert_id, "lang": lang, **backend_meta, "scenes": scenes}
     out_dir.mkdir(parents=True, exist_ok=True)
-    script_path.write_text(yaml.safe_dump(script, sort_keys=False, allow_unicode=True))
+    script_path.write_text(yaml.safe_dump(script, sort_keys=False, allow_unicode=True), encoding="utf-8")
     return {"written": str(script_path)}
 
 
@@ -694,7 +694,7 @@ def _render_from_script(
     if video_path.exists() and not force:
         return {"skipped": f"{video_path} ya existe (usar --force)"}
 
-    script = yaml.safe_load(script_path.read_text())
+    script = yaml.safe_load(script_path.read_text(encoding="utf-8"))
     scenes = script["scenes"]
     voice_model = _ensure_voice(lang)
 

@@ -67,7 +67,8 @@ listen on 127.0.0.1
 servers 192.0.2.254
 sensor *
 EOF
-    elif [[ -f /etc/chrony/chrony.conf || -f /etc/chrony.conf ]]; [[ -f /etc/chrony/chrony.conf ]] && CHRONY_PATH="/etc/chrony/chrony.conf" || CHRONY_PATH="/etc/chrony.conf"
+    elif [[ -f /etc/chrony/chrony.conf || -f /etc/chrony.conf ]]; then
+        [[ -f /etc/chrony/chrony.conf ]] && CHRONY_PATH="/etc/chrony/chrony.conf" || CHRONY_PATH="/etc/chrony.conf"
         cat << 'EOF' > "${CHRONY_PATH}"
 # CORRUPTED CHRONY LAB CONFIGURATION
 server 192.0.2.254 iburst

@@ -68,7 +68,7 @@ def create_block(cert: str) -> None:
     has a syllabus and no entry at all. Appended to the end of `certs:` so the
     surrounding comments — which explain what each field means — stay put.
     """
-    text = PIPELINE.read_text()
+    text = PIPELINE.read_text(encoding="utf-8")
     lines = text.splitlines()
     end = None
     for i, line in enumerate(lines):
@@ -87,7 +87,7 @@ def create_block(cert: str) -> None:
 
 def set_key(cert: str, key: str, value: str) -> bool:
     """Set one key inside one certification. True if the file changed."""
-    text = PIPELINE.read_text()
+    text = PIPELINE.read_text(encoding="utf-8")
     start, end = _cert_block(text, cert)
     lines = text.splitlines()
     wanted = f"    {key}: {value}"
@@ -149,7 +149,7 @@ def main() -> int:
         changed = set_key(args.cert, "owner", args.agent)
 
     elif args.command == "activate":
-        if f"\n  {args.cert}:\n" not in PIPELINE.read_text():
+        if f"\n  {args.cert}:\n" not in PIPELINE.read_text(encoding="utf-8"):
             if not (REPO / "certs" / f"{args.cert}.md").exists():
                 raise SystemExit(f"No syllabus at certs/{args.cert}.md — snapshot it "
                                  f"first: teach cert snapshot {args.cert}")
@@ -183,7 +183,7 @@ def main() -> int:
         # The bounded goal the unattended timer works toward, and the only thing
         # it may work on. Cleared means it generates nothing — an unset goal must
         # never read as "everything", which is what it did before this existed.
-        text = PIPELINE.read_text()
+        text = PIPELINE.read_text(encoding="utf-8")
         lines = text.splitlines()
         start = next((i for i, l in enumerate(lines) if l.startswith("milestone:")), None)
         if start is None:
@@ -225,7 +225,7 @@ def main() -> int:
         if not 1 <= args.topics <= 10:
             raise SystemExit("Between 1 and 10. Raising this does not produce more, "
                              "it fails later and wastes more when it does.")
-        text = PIPELINE.read_text()
+        text = PIPELINE.read_text(encoding="utf-8")
         lines = text.splitlines()
         for i, line in enumerate(lines):
             if line.strip().startswith("topics_per_run:"):

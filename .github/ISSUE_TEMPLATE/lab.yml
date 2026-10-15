@@ -1,0 +1,22 @@
+name: Lab
+description: A break-and-fix lab does not work, or a new lab idea
+labels: [lab]
+body:
+  - type: input
+    id: where
+    attributes:
+      label: Certification and topic
+      placeholder: "lpi-010-160 2.1"
+    validations: {required: true}
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options: [The lab fails to start, The lab does not break what it says, The solution does not fix it, New lab proposal]
+    validations: {required: true}
+  - type: textarea
+    id: output
+    attributes:
+      label: Commands and output
+      description: "`teach lab validate <cert> <topic>` and `teach lab up <cert> <topic>` output, OS, Docker version."
+      render: shell

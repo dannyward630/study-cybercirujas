@@ -101,10 +101,14 @@ curl -s https://study.cybercirujas.club/api/status | jq '.[] | select(.state=="o
 
 ## Running your own copy
 
+Prerequisites: `git`, `make`, Python ≥ 3.11 with `venv` (`sudo apt install
+python3-venv` on Debian/Ubuntu — without it `make setup` stops at
+*ensurepip is not available*).
+
 ```bash
 git clone https://github.com/villadalmine/study-cybercirujas.git
 cd study-cybercirujas
-make setup      # venv, CLI, and the pre-commit hook
+make setup      # venv, CLI, and the pre-commit hook (~20 s)
 make serve      # API + web on http://127.0.0.1:8000
 ```
 
@@ -240,15 +244,19 @@ so anything built on it can carry the disclosure forward.
 floor, manifests, Kubernetes APIs, provenance, sources, syllabus coverage,
 the STATUS.md and API-reference freshness checks, the tests, and a secret
 scan. No quota is spent, so a stranger's pull request gets the same verdict
-the owner gets. Three checks are excluded because they describe the
+the owner gets — and the contributor runs the very same target locally:
+`make verify-ci`. It is `make verify` minus the checks that describe the
 workstation rather than the commit: `check_units` reads installed systemd
-units, `check_config` compares against local usage records, and
+units, `check_config` compares against local usage records,
 `status_matrix --check` counts rendered videos, which are gitignored for
-size and therefore absent from any clean checkout.
+size and therefore absent from any clean checkout, and `check_graph` needs
+the optional graphify install. Plain `make verify` fails on a fresh clone for
+exactly that reason.
 
 Where the loop is honest about its gaps: publishing is a manual step (the
-workstation running the unattended pass has no `make`/`kubectl`/`helm`) and
-the registry has no retention policy. Both are in [ROADMAP.md](ROADMAP.md).
+workstation running the unattended pass has no `make`/`kubectl`/`helm`), and
+registry retention is a command (`make clean-registry`, see
+[docs/CLEANUP.md](docs/CLEANUP.md)) rather than a policy that runs by itself.
 
 ## Keeping this page true
 

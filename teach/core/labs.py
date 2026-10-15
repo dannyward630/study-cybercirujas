@@ -23,8 +23,10 @@ only reads and writes the contract.
 """
 
 import datetime
+import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import yaml
@@ -46,7 +48,7 @@ def _write_status(directory: Path, state: str, detail: str = "") -> dict:
         "detail": detail,
         "updated_at": datetime.datetime.now().isoformat(timespec="seconds"),
     }
-    (directory / "status.yaml").write_text(yaml.safe_dump(status, sort_keys=False))
+    (directory / "status.yaml").write_text(yaml.safe_dump(status, sort_keys=False), encoding="utf-8")
     return status
 
 
@@ -54,7 +56,7 @@ def _load_spec(directory: Path) -> dict:
     spec_file = directory / "lab.yaml"
     if not spec_file.exists():
         raise LabError(f"No lab spec in {directory}. Run: teach cert generate")
-    return yaml.safe_load(spec_file.read_text()) or {}
+    return yaml.safe_load(spec_file.read_text(encoding="utf-8")) or {}
 
 
 # ----------------------------------------------------------- terraform provider
@@ -102,7 +104,7 @@ def _needs_cluster(directory: Path) -> bool:
     itself rather than a separate field in lab.yaml, so the 100+ existing
     lab.yaml files do not have to be regenerated."""
     script = directory / "break_fix.sh"
-    return script.exists() and "kubectl" in script.read_text()
+    return script.exists() and "kubectl" in script.read_text(encoding="utf-8")
 
 
 def _up_container(directory: Path, spec: dict, name: str) -> None:
@@ -114,6 +116,7 @@ def _up_container(directory: Path, spec: dict, name: str) -> None:
     result = _run([
         "docker", "run", "-d", "--name", name,
         "--cpus", cpus, "--memory", ram,
+        *_owner_label(),
         image, "sleep", "infinity",
     ])
     if result.returncode != 0:
@@ -123,15 +126,53 @@ def _up_container(directory: Path, spec: dict, name: str) -> None:
     _run(["docker", "exec", name, "useradd", "-m", "student"])
     script = directory / "break_fix.sh"
     _run(["docker", "cp", str(script), f"{name}:/home/student/break_fix.sh"])
-    result = subprocess.run(
-        ["docker", "exec", "-u", "student", "-w", "/home/student", name, "bash", "break_fix.sh"]
-    )
+    result = subprocess.run(_exec_script_cmd(name, interactive=sys.stdin.isatty()))
     if result.returncode != 0:
         raise LabError("break_fix.sh failed inside the container (see output above).")
 
 
+def _exec_script_cmd(name: str, interactive: bool) -> list[str]:
+    """`docker exec` for break_fix.sh, with the student's stdin attached.
+
+    Most scripts ask for a confirmation first (`read -r -p "... (type SI)"`),
+    and without `-i` the `read` hits EOF, the script prints "Cancelled" and
+    exits 0 — so `teach lab up` reported a running lab in which nothing had
+    been broken. `-t` only when there is a terminal: docker refuses `-t` with a
+    piped stdin ("the input device is not a TTY").
+    """
+    flags = ["-i", "-t"] if interactive else ["-i"]
+    return ["docker", "exec", *flags, "-u", "student", "-w", "/home/student",
+            name, "bash", "break_fix.sh"]
+
+
+OWNER_LABEL = "org.cybercirujas.study.owner"
+
+
+def _owner_label() -> list[str]:
+    """`--label` that stamps who created the container, when that is known.
+
+    TEACH_LAB_OWNER is an ownership token: a container is created carrying it
+    (atomically, by `docker run`), and `lab down` with the same token removes
+    only containers that carry it. Lab names are fixed (teach-<cert>-<topic>),
+    so without a token a test or script could delete someone else's lab that
+    happens to hold the name. Unset, nothing changes for a student.
+    """
+    owner = os.environ.get("TEACH_LAB_OWNER")
+    return ["--label", f"{OWNER_LABEL}={owner}"] if owner else []
+
+
 def _down_container(name: str) -> None:
-    _run(["docker", "rm", "-f", name])
+    owner = os.environ.get("TEACH_LAB_OWNER")
+    if not owner:
+        _run(["docker", "rm", "-f", name])
+        return
+    # Resolve the name to IDs that carry this owner's label, and remove by ID:
+    # a container with the same name but another owner (or none) is left alone.
+    found = _run(["docker", "ps", "-aq", "--no-trunc",
+                  "--filter", f"name=^/{name}$",
+                  "--filter", f"label={OWNER_LABEL}={owner}"])
+    for container_id in found.stdout.split():
+        _run(["docker", "rm", "-f", container_id])
 
 
 def _status_container(name: str) -> dict:
@@ -162,6 +203,132 @@ def _status_cluster(name: str) -> dict:
     return {"running": running}
 
 
+# ------------------------------------------------- the lab contract, checkable
+
+REQUIRED_KEYS = ("cert", "topic", "title", "provider", "resources", "setup")
+PROVIDERS = ("local", "terraform")
+
+
+def default_spec(cert_id: str, topic_id: str, title: str) -> dict:
+    """The lab.yaml every topic starts from — one definition, used by the AI
+    generator and by `teach lab new`, so a lab written by hand and one written
+    by a model are held to the same contract."""
+    return {
+        "cert": cert_id,
+        "topic": topic_id,
+        "title": title,
+        "provider": "local",
+        "resources": {"vms": [{"name": "lab", "os": "debian-12", "cpus": 1, "ram_mb": 1024}]},
+        "setup": ["break_fix.sh"],
+    }
+
+
+BREAK_FIX_TEMPLATE = """#!/usr/bin/env bash
+# {cert} {topic} — {title}
+# BREAK & FIX lab. Runs inside a throwaway container (`teach lab up {cert} {topic}`),
+# never on your own machine.
+set -euo pipefail
+
+if [ "$(id -u)" -eq 0 ]; then
+    echo "Run this as an ordinary user inside the lab container, not as root." >&2
+    exit 1
+fi
+
+echo "This lab breaks something on purpose. Only in a disposable lab."
+read -r -p "Type LAB to continue: " answer
+[ "$answer" = "LAB" ] || {{ echo "Cancelled. Nothing changed."; exit 0; }}
+
+# --- BREAK -------------------------------------------------------------------
+# TODO: break one thing, reversibly, that the topic teaches how to diagnose.
+
+# --- SYMPTOM -----------------------------------------------------------------
+echo "Symptom: TODO — what the student will see, and what 'fixed' looks like."
+
+# --- SOLUTION (commented) ----------------------------------------------------
+# TODO: the fix, step by step.
+"""
+
+
+def validate_spec(directory: Path) -> list[str]:
+    """Problems with a lab directory, [] when it honours the contract.
+
+    Deterministic and offline: reads files, and syntax-checks break_fix.sh with
+    `bash -n` (parses, never executes) when bash is available.
+    """
+    problems: list[str] = []
+    spec_file = directory / "lab.yaml"
+    if not spec_file.exists():
+        return [f"{spec_file}: missing"]
+    try:
+        spec = yaml.safe_load(spec_file.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as error:
+        return [f"{spec_file}: not valid YAML ({error})"]
+    if not isinstance(spec, dict):
+        return [f"{spec_file}: not a mapping"]
+    # Every nested value is type-checked before it is used, so a malformed lab
+    # is reported rather than aborting `lab validate --all` with a traceback.
+    # Extra keys are allowed on purpose: the lab.yaml v2 of the study-lab
+    # runner (schema_version, modes, hints, ...) is a superset of this one.
+    problems += [f"{spec_file}: missing key '{k}'" for k in REQUIRED_KEYS if k not in spec]
+    provider = spec.get("provider")
+    if provider not in PROVIDERS:
+        problems.append(f"{spec_file}: provider {provider!r} not in {PROVIDERS}")
+    resources = spec.get("resources")
+    if "resources" in spec and not isinstance(resources, dict):
+        problems.append(f"{spec_file}: resources must be a mapping")
+        resources = {}
+    setup = spec.get("setup")
+    if "setup" in spec and not (isinstance(setup, list) and all(isinstance(s, str) for s in setup)):
+        problems.append(f"{spec_file}: setup must be a list of file names")
+        setup = []
+    setup = setup or []
+    if provider == "local":
+        vms = (resources or {}).get("vms")
+        if not isinstance(vms, list) or not vms:
+            problems.append(f"{spec_file}: local provider needs a non-empty resources.vms list")
+            vms = []
+        for vm in vms:
+            if not isinstance(vm, dict):
+                problems.append(f"{spec_file}: each resources.vms entry must be a mapping")
+            elif not isinstance(vm.get("os"), str) or vm["os"] not in OS_IMAGES:
+                # isinstance first: a list or mapping is unhashable and the
+                # membership test would raise instead of reporting.
+                problems.append(f"{spec_file}: os {vm.get('os')!r} not in {sorted(OS_IMAGES)}")
+        # The local provider always runs break_fix.sh (_up_container,
+        # _up_cluster); a lab that does not declare it cannot be run.
+        if "break_fix.sh" not in setup:
+            problems.append(f"{spec_file}: local provider needs break_fix.sh in setup")
+    for step in setup:
+        script = directory / step
+        if not script.exists():
+            problems.append(f"{spec_file}: setup step {step} does not exist")
+        elif script.suffix == ".sh" and shutil.which("bash"):
+            result = _run(["bash", "-n", str(script)])
+            if result.returncode != 0:
+                problems.append(f"{script}: bash -n failed: {result.stderr.strip()}")
+    return problems
+
+
+def scaffold(cert_id: str, topic_id: str, force: bool = False) -> Path:
+    """Write a lab from the template, no model involved. Returns its directory."""
+    topic = certs.get_topic(cert_id, topic_id)
+    directory = lab_dir(cert_id, topic_id)
+    # Either file is someone's work: a hand-written break_fix.sh, or one left
+    # by an interrupted generation (generator.py writes the script before
+    # lab.yaml). Neither is replaced by the TODO template without --force.
+    existing = [name for name in ("lab.yaml", "break_fix.sh") if (directory / name).exists()]
+    if existing and not force:
+        raise LabError(f"{directory} already has {', '.join(existing)} (use --force to overwrite)")
+    directory.mkdir(parents=True, exist_ok=True)
+    spec = default_spec(cert_id, str(topic_id), topic["title"])
+    (directory / "lab.yaml").write_text(
+        yaml.safe_dump(spec, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    (directory / "break_fix.sh").write_text(
+        BREAK_FIX_TEMPLATE.format(cert=cert_id, topic=topic_id, title=topic["title"]),
+        encoding="utf-8")
+    return directory
+
+
 # ----------------------------------------------------------------- public API
 
 def up(cert_id: str, topic_id: str) -> dict:
@@ -182,6 +349,22 @@ def up(cert_id: str, topic_id: str) -> dict:
         _write_status(directory, "failed", str(error))
         raise
     return _write_status(directory, "running")
+
+
+def enter_hint(cert_id: str, topic_id: str) -> str | None:
+    """The command that opens a shell in a running local lab, or None.
+
+    `lab up` used to stop at "running" and leave the student to guess the
+    container name and that the scenario lives in the `student` account.
+    """
+    directory = lab_dir(cert_id, topic_id)
+    spec = _load_spec(directory)
+    if spec.get("provider", "terraform") != "local":
+        return None
+    name = _lab_name(cert_id, topic_id)
+    if _needs_cluster(directory):
+        return f"kubectl config use-context kind-{name}"
+    return f"docker exec -it -u student -w /home/student {name} bash"
 
 
 def down(cert_id: str, topic_id: str) -> dict:
@@ -208,12 +391,12 @@ def status(cert_id: str, topic_id: str) -> dict:
     status_file = directory / "status.yaml"
     if not status_file.exists():
         return {"state": "none"}
-    cached = yaml.safe_load(status_file.read_text())
+    cached = yaml.safe_load(status_file.read_text(encoding="utf-8"))
     # For the local provider, check the real docker/kind state rather than
     # blindly trusting the last status.yaml written: the container or cluster
     # may have died or been deleted by hand since the last run.
     if cached.get("state") == "running" and (directory / "lab.yaml").exists():
-        spec = yaml.safe_load((directory / "lab.yaml").read_text()) or {}
+        spec = yaml.safe_load((directory / "lab.yaml").read_text(encoding="utf-8")) or {}
         if spec.get("provider") == "local":
             name = _lab_name(cert_id, topic_id)
             live = _status_cluster(name) if _needs_cluster(directory) else _status_container(name)

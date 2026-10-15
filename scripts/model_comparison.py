@@ -97,7 +97,7 @@ def observations(cert_filter: str | None, lang: str | None = None) -> list[dict]
         if cert_filter and cert != cert_filter:
             continue
         try:
-            front = yaml.safe_load(syllabus.read_text().split("---")[1]) or {}
+            front = yaml.safe_load(syllabus.read_text(encoding="utf-8").split("---")[1]) or {}
         except (IndexError, yaml.YAMLError):
             continue
         for topic in front.get("topics") or []:
@@ -112,7 +112,7 @@ def observations(cert_filter: str | None, lang: str | None = None) -> list[dict]
                 if not meta_file.exists() or not content.exists():
                     continue
                 try:
-                    meta = yaml.safe_load(meta_file.read_text()) or {}
+                    meta = yaml.safe_load(meta_file.read_text(encoding="utf-8")) or {}
                 except yaml.YAMLError:
                     continue
                 model = str(meta.get("model") or "unknown")
@@ -237,7 +237,7 @@ def render_markdown() -> str:
 def write(path: Path | None = None) -> bool:
     """Write MODELS.md; True if it changed. Importable, like status_matrix.refresh."""
     target = path or (REPO / "MODELS.md")
-    before = target.read_text() if target.exists() else None
+    before = target.read_text(encoding="utf-8") if target.exists() else None
     text = render_markdown()
     target.write_text(text)
     return text != before
