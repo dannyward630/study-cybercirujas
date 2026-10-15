@@ -56,9 +56,13 @@ class GeneratorConfigError(Exception):
 # ("ja/content.md に完全な学習コンテンツを書きました...") instead of the
 # requested content. --disallowedTools forces a plain-text answer, which is all
 # it can do without tools.
-_CLAUDE_NO_TOOLS = (
-    "Write,Edit,Bash,Read,Glob,Grep,NotebookEdit,WebFetch,WebSearch,Task"
-)
+#
+# `*` and not a list of names: a list leaves out every tool it does not name.
+# Measured on 2026-10-15 in this repo with CLI 2.1.299 (haiku, asked to call
+# any tool it had): with the ten names below denied, it still called other
+# tools and the completion took 3 turns; with `*`, 1 turn and no tool call.
+# The repo's .mcp.json servers and any newer built-in tool are covered too.
+_CLAUDE_NO_TOOLS = "*"
 
 # `--output-format json` is what makes spend measurable. The plain text mode
 # answers and tells you nothing; the JSON envelope carries `result` (the answer)
@@ -98,6 +102,46 @@ def _prompt_on_stdin(prompt: str, command: list[str] | tuple[str, ...] = (),
         line = subprocess.list2cmdline([*command, prompt])
         return len(line.encode("utf-16-le")) // 2 > _ARGV_LIMIT_WINDOWS_UNITS
     return len(prompt.encode()) > _ARGV_LIMIT_POSIX_BYTES
+
+
+def _split_answer(envelope: dict) -> str | None:
+    """Why this envelope's `result` is not the whole answer, or None if it is.
+
+    With every tool disallowed (_CLAUDE_NO_TOOLS), a completion is one turn,
+    and a second turn has two possible causes: a tool call the denial did not
+    cover, or a continuation. When the answer outgrows
+    the CLI's per-message output limit, the CLI asks the model to continue in a
+    new turn — and `result` carries only the LAST turn. lpic-2/200.1 (en,
+    2026-10-15) came back as 13 KB starting mid-sentence, the tail of a 132 KB
+    answer whose first 119 KB were only in the session transcript; it was
+    caught by the floor only because the tail did not start with '#'. A tail
+    that happened to open on a heading would have been saved as the topic.
+    """
+    turns = envelope.get("num_turns")
+    if isinstance(turns, int) and turns > 1:
+        return (
+            f"the CLI reported num_turns={turns} for a completion that should "
+            f"take one, and `result` holds only the last turn. Nothing was "
+            f"saved. Two causes: the answer outgrew the output-token limit "
+            f"(raise generation.max_output_tokens in pipeline.yaml), or the "
+            f"model called a tool the denial did not cover (check "
+            f"_CLAUDE_NO_TOOLS). The CLI session transcript shows which."
+        )
+    return None
+
+
+def _cli_env(backend: str) -> dict[str, str]:
+    """Environment for the agent CLI: ours, plus the declared output ceiling.
+
+    The claude CLI caps one message at its own default (64k tokens observed on
+    2026-10-15) unless CLAUDE_CODE_MAX_OUTPUT_TOKENS says otherwise. An
+    explicit value in the environment wins, like TEACH_CLAUDE_MODEL does.
+    """
+    env = dict(os.environ)
+    ceiling = pipeline.generation().get("max_output_tokens")
+    if backend == "claude" and ceiling and "CLAUDE_CODE_MAX_OUTPUT_TOKENS" not in env:
+        env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = str(int(ceiling))
+    return env
 
 
 USAGE_LOG = Path.home() / ".local" / "state" / "teach-plat" / "usage.jsonl"
@@ -432,6 +476,7 @@ def _agent_completer(backend: str, effort: str | None = None) -> tuple[Completer
                 run_command,
                 capture_output=True,
                 text=True,
+                env=_cli_env(backend),
                 timeout=timeout,
                 **stdin_kwargs,
             )
@@ -474,6 +519,9 @@ def _agent_completer(backend: str, effort: str | None = None) -> tuple[Completer
         if not isinstance(answer, str):
             return output
         _record_usage(envelope)
+        split = _split_answer(envelope)
+        if split:
+            raise GeneratorConfigError(split)
         # Record WHICH model actually answered, not which CLI was invoked.
         # `model: claude` said nothing — opus-5, opus-4.8 and fable-5 all look
         # identical in a meta.yaml that only names the command, which makes it
