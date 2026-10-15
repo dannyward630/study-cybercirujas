@@ -1,0 +1,10 @@
+# Who is asked to review what (GOVERNANCE.md → Who maintains what).
+# Today one maintainer owns everything; areas get their own owners as
+# maintainers join, e.g.:
+#   /certs/cka/        @someone
+#   /certs/*/*/es/     @someone-else
+*       @villadalmine
+# CI and its checks run from the PR branch: a PR that edits them is read by
+# the maintainer on purpose (CONTRIBUTING → Where it ran). Keep this line
+# even when areas get other owners.
+/.github/      @villadalmine

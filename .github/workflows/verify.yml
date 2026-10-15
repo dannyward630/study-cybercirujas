@@ -20,9 +20,10 @@ on:
   pull_request:
     # `edited` re-runs pr-format when the title or description changes;
     # without it a corrected description stayed red and an edited one kept
-    # the old green verdict (review on #1). verify and e2e skip `edited`:
-    # the code did not change.
-    types: [opened, synchronize, reopened, edited]
+    # the old green verdict (review on #1). `labeled`/`unlabeled` re-run it
+    # when a maintainer sets scope-exception or size-exception (review of
+    # #3). verify, e2e and where-it-ran skip all three: the code did not change.
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
   workflow_dispatch:
 
 permissions:
@@ -30,13 +31,13 @@ permissions:
 
 concurrency:
   # A newer push makes the older run irrelevant; cancel it rather than queue.
-  # A description edit must not cancel a code run on the same ref.
-  group: verify-${{ github.ref }}-${{ github.event.action == 'edited' && 'edited' || 'code' }}
+  # A description edit or a label must not cancel a code run on the same ref.
+  group: verify-${{ github.ref }}-${{ contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) && 'meta' || 'code' }}
   cancel-in-progress: true
 
 jobs:
   verify:
-    if: github.event.action != 'edited'
+    if: ${{ !contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -76,7 +77,7 @@ jobs:
     # The newcomer's path, end to end: clone, make setup, make serve, the
     # site, the API, the CLI, and a break-and-fix lab in Docker. Slow (a pip
     # install and a container), so it runs beside verify rather than inside it.
-    if: github.event.action != 'edited'
+    if: ${{ !contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -103,6 +104,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      actions: read          # the cited run and its jobs (needed if the repository is private)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -111,9 +113,34 @@ jobs:
         with:
           python-version: '3.12'
       - name: Check the PR description
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           pip install -q pyyaml
-          python3 scripts/check_pr.py --event "$GITHUB_EVENT_PATH"             --base "origin/${{ github.base_ref }}" --label-file site-label.txt
+          # Labels read live, not from the payload: "Re-run jobs" replays the
+          # original event, which may predate a waiver label.
+          gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels" \
+            --jq '.[].name' > labels.txt || rm -f labels.txt
+          python3 scripts/check_pr.py --event "$GITHUB_EVENT_PATH" --labels-file labels.txt \
+            --base "origin/${{ github.base_ref }}" \
+            --label-file site-label.txt --runs-file cited-runs.txt
+      - name: Check the run cited under "Where it ran"
+        # check_pr.py stays offline; this step is its one networked mode, with
+        # the job's own token. At least one cited run must be of this
+        # repository, on the PR's current head commit, from verify.yml on a
+        # pull_request event, with its `verify` and `e2e` jobs green. The jobs,
+        # not the run: the run that proves the code also contains this very
+        # job, which was red until the link was pasted (found on #3, run
+        # 38683552353). The workflow, not only the job names: a PR could add
+        # a workflow with jobs named verify/e2e (review of #3). pr-format runs
+        # from the PR branch, so a PR that edits .github/ is still read by the
+        # maintainer. A new push makes the old link stale on purpose.
+        if: always() && hashFiles('cited-runs.txt') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/check_pr.py --verify-runs cited-runs.txt \
+            --repo "${{ github.repository }}" --head "${{ github.event.pull_request.head.sha }}"
       - name: Label the site impact
         # Runs even when the description check fails: the label is a fact
         # about the files. A fork's token cannot write labels; that is fine.
@@ -126,3 +153,38 @@ jobs:
           other=$([ "$label" = "site:none" ] && echo "site:image-rebuild" || echo "site:none")
           gh label create "$label" --force --color "$([ "$label" = "site:none" ] && echo 0e8a16 || echo d93f0b)"             --description "set by scripts/check_pr.py from the changed files"
           gh pr edit "${{ github.event.pull_request.number }}" --add-label "$label" --remove-label "$other" ||             gh pr edit "${{ github.event.pull_request.number }}" --add-label "$label"
+
+  where-it-ran:
+    # After verify and e2e pass on a new head, post (or update) one comment
+    # with the exact line for the description's "Where it ran" subsection.
+    # Our own Actions token, no external bot. The author still pastes it:
+    # the description is the record, and pr-format checks what it says.
+    if: ${{ github.event_name == 'pull_request' && !contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) }}
+    needs: [verify, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true      # a fork's token cannot comment; the check still works
+    permissions:
+      pull-requests: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          RUN: ${{ github.run_id }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          marker='<!-- where-it-ran -->'
+          body="$marker
+          **Where it ran** — paste this into the description, under *Evidence → Where it ran*:
+
+          \`\`\`
+          - CI: https://github.com/$REPO/actions/runs/$RUN — verify and e2e green on head \`${SHA:0:7}\`
+          \`\`\`"
+          id="$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+                --jq ".[] | select(.user.login == \"github-actions[bot]\") | select(.body | startswith(\"$marker\")) | .id" | head -1)"
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" >/dev/null
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -f body="$body" >/dev/null
+          fi

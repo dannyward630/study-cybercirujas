@@ -31,12 +31,43 @@ teach cert video-script ...
 teach cert video ...
 ```
 
+### Where it ran
+
+<!-- The CI run on this PR's HEAD commit, green: github.com/villadalmine/study-cybercirujas/actions/runs/<id>.
+     CI posts a 'where-it-ran' comment with this line ready to paste after each push; a new push
+     makes the old link stale and pr-format fails until it is updated. Add the machine or local
+     environment too if you ran anything there. -->
+- CI: 
+- Local: 
+
+### Known gaps
+
+<!-- What this evidence does NOT cover. Always present; 'none' is a claim, not a default. -->
+
 ## Video
 
 - Duration: 
 - Language of the audio: 
 - Screenshot of a frame: <!-- drag an image here -->
 - Rendered with: <!-- TTS voice, ffmpeg version, threads -->
+
+## Authorship
+
+<!-- Who did what, updated on every review round (CONTRIBUTING → Authorship). The Author
+     row starts with "Human:" or "AI:" and agrees with Provenance; for AI it names the
+     agent and the model. One Reviewer row per review (Copilot, revisor-pr, a person). -->
+| Role | Who | What | Link |
+| :--- | :--- | :--- | :--- |
+| Author | Human: @you · or · AI: <agent> · <model id> | commits `<first>..<last>` | |
+| Reviewer | | head `<sha>` — result | |
+| Approval and merge | maintainer (human) | pending | |
+
+### Findings ledger
+
+<!-- One row per finding, from any reviewer, CI or a person. Status: fixed |
+     rejected — <reason> | open. "Verified by" is who confirmed the fix next round. -->
+| # | Found by | Head | Severity | Finding | Fixed by | Fix | Verified by | Status |
+| :- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 
 ## How to test it from a clean clone
 

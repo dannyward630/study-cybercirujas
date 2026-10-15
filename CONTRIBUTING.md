@@ -92,8 +92,8 @@ One template per kind of change, in
 [`.github/PULL_REQUEST_TEMPLATE/`](.github/PULL_REQUEST_TEMPLATE/):
 `content.md`, `translation.md`, `lab.md`, `video.md`, `code.md`, `docs.md`
 (pick one with `?template=<name>.md` on the compare URL). Every PR has the same
-required sections — **What and why · Kind · Provenance · Evidence · How to test
-it from a clean clone · Risk and rollback · Depends on** — and each template
+required sections — **What and why · Kind · Provenance · Evidence · Authorship ·
+How to test it from a clean clone · Risk and rollback · Depends on** — and each template
 adds only what its kind needs (a translation: the gate result and three
 paragraphs picked with a stated seed; a lab: break → verify fails, fix → verify
 passes; a video: duration, a frame, the audio language).
@@ -103,6 +103,90 @@ and the cost, plus the official source. It is verified, not trusted:
 `scripts/check_pr.py` runs on every PR and compares what the PR declares with
 the `meta.yaml` of every topic it touches. A person and a model pass the same
 filter.
+
+**Where it ran.** Every PR proves where it ran: under *Evidence*, a
+`### Where it ran` subsection links the green CI run on the PR's **current
+head commit** (plus the machine or local environment, if you ran anything
+there), and a `### Known gaps` subsection says what that evidence does *not*
+cover. After each push CI posts a *where-it-ran* comment with the exact line to
+paste; `pr-format` checks, with the API, that a cited run belongs to this
+repository, is a run of `.github/workflows/verify.yml` on a `pull_request`
+event, is on the head commit, and has its `verify` and `e2e` jobs green. That
+proves *this workflow ran green on this commit*, not that the workflow is the
+one on `main`: `pr-format` runs from the PR branch, so the maintainer reads
+every `.github/` change (CODEOWNERS lists it on its own). A new push makes the old link
+stale on purpose, so the description has to be updated — that keeps "it passed"
+attached to the code that is actually being merged.
+
+**Authorship.** Every PR records who did what, and keeps it current on every
+review round:
+
+- a table with the **author** (`Human: <who>` or `AI: <agent> · <model>`, and
+  the range of commits), one row per **review** (Copilot, the `revisor-pr`
+  agent, a person: link, the head it read, the result) and the **approval and
+  merge** (always a human maintainer);
+- a `### Findings ledger`, one row per finding, whoever found it (a reviewer,
+  CI, a person): found by (with the link to the comment) · head · severity ·
+  fixed by · fix commit · verified by (who confirmed it next round) · status
+  (`fixed`, `open`, or `rejected — <reason>`).
+
+`check_pr.py` fails the PR when the section or the ledger is missing, a ledger
+row is malformed, or the author row disagrees with *Provenance* (human vs AI,
+and for AI the model). Details and an example: [docs/REVIEWS.md](docs/REVIEWS.md).
+
+### Size and scope
+
+| Kind of PR | Scope | Checked by `check_pr.py` |
+|---|---|---|
+| content or translation | **one topic in one language** | more than one `certs/<cert>/<topic>/<lang>/` fails |
+| lab | **one lab** | more than one `certs/<cert>/<topic>/lab/` fails |
+| code | **≤ ~400 changed lines** (generated files excluded) | over 400 fails; split into stacked PRs, each saying `Depends on: #N` |
+| any | material and code are never mixed; generated files (`STATUS.md`, `MODELS.md`) are regenerated, never edited by hand | fails |
+
+A maintainer can waive scope or size for one PR with the label
+`scope-exception` or `size-exception`, saying why in the PR. Setting or
+removing the label re-runs `pr-format` on its own (it reads the labels live),
+without re-running `verify` and `e2e`.
+
+### Labels
+
+Applied automatically, no external bot: `site:none` / `site:image-rebuild`
+by `pr-format`, and `type:content|lab|video|code|ci|docs` and
+`lang:en|es|other` by path ([`.github/labeler.yml`](.github/labeler.yml),
+`actions/labeler`).
+
+### Agents
+
+AI agents (Claude Code, Codex, Gemini, …) open PRs exactly like people: the
+same templates, the same required sections, provenance that names the model,
+"Where it ran" on the head commit, the commit trailers their tool adds
+(`Co-Authored-By:` and a session link), plus `Agent: <role>` and
+`Model: <model id>` on every commit, and on a commit that fixes a finding
+`Found-by: <reviewer> <link>`, `Fixed-by: <agent>/<model>` and
+`Fixes-review: <link>` ([docs/REVIEWS.md](docs/REVIEWS.md) → Authorship). The checks do not care who wrote the
+PR — that is the point.
+
+## Reviews and merging
+
+| What | Reviewed against | By |
+|---|---|---|
+| content | the official source it cites | maintainer of the area |
+| translation | the structural gate, plus three paragraphs picked with the seed stated in the PR | maintainer, or a fluent contributor |
+| lab | the cycle in the PR: break → verify fails, fix → verify passes, down leaves nothing | maintainer |
+| video | duration, a frame, the audio language | maintainer |
+| code | tests and CI | maintainer |
+
+[`.github/CODEOWNERS`](.github/CODEOWNERS) requests the right reviewer
+automatically; today every path belongs to the one maintainer, and areas get
+their own owners as maintainers join ([GOVERNANCE.md](GOVERNANCE.md)).
+
+Automated review by Copilot runs alongside and has its own rules:
+[docs/REVIEWS.md](docs/REVIEWS.md).
+
+**Merging:** squash merge only — the PR title becomes the single commit on
+`main`, which is why it must be a Conventional Commit. The branch is deleted on
+merge. Nobody merges their own PR, except the maintainer for maintenance
+changes; an agent never merges.
 
 ## Merging and deploying the site
 
@@ -136,7 +220,7 @@ installing dependencies. CI runs the same targets.
 | labs: every lab honours the contract; `lab new` produces a valid lab; broken specs are caught; `lab up` attaches stdin | `tests/test_labs.py` | `make test` |
 | translation: the structural gate a translation must pass (code blocks, URLs, headings, length) | `tests/test_translation_verify.py` | `make test` |
 | content: quality floor, manifests, Kubernetes APIs, provenance, sources, syllabus, versions; README/API tables up to date | `scripts/check_*.py`, `gen_*.py --check` | `make verify-ci` |
-| the PR description: required sections, Conventional Commit title, declared provenance = `meta.yaml` | `scripts/check_pr.py`, `tests/test_check_pr.py` | `scripts/check_pr.py --title "<title>" --body-file <body.md> --base origin/main` (CI runs it on every PR) |
+| the PR description: required sections, Conventional Commit title, declared provenance = `meta.yaml`, Where it ran on the head commit, size and scope | `scripts/check_pr.py`, `tests/test_check_pr.py` | `scripts/check_pr.py --title "<title>" --body-file <body.md> --base origin/main` (CI runs it on every PR) |
 | everything fast above, in one go | `tests/` | `make test` |
 
 Lab lifecycle in a container (run → break → verify → cleanup per lab) joins
@@ -146,9 +230,7 @@ skipped placeholder so the gap is visible.
 A lab that is known to be broken is listed, with the reason, in
 `tests/fixtures/labs_known_broken.txt`; fixing it means deleting its line.
 
-## Reviews
+## Licence and conduct
 
-A maintainer ([GOVERNANCE.md](GOVERNANCE.md)) reviews every pull request.
-Content changes are judged against the official source, not against opinion.
 By contributing you agree your contribution is licensed under
 [Apache 2.0](LICENSE), and you follow the [Code of Conduct](CODE_OF_CONDUCT.md).

@@ -11,16 +11,32 @@ check instead of a request. It fails when:
   computed site impact: `image-rebuild` when the PR touches anything the
   public image is built from (the `paths` of .github/workflows/docker.yml,
   the single source), `none` otherwise;
+- the Authorship section has no `| Author | Human: … |` or `| Author | AI: … |`
+  row, that row disagrees with Provenance (human/ai, and for AI the model), it
+  has no `### Findings ledger`, or a ledger row is malformed (9 columns, a
+  "Found by", and a status: fixed | open | rejected — <reason>);
 - the PR touches study material under certs/ and the provenance it declares
   does not match the meta.yaml of the topics it touches: for `Author: ai`, the
   declared backend and model must be the ones meta.yaml records; for
   `Author: human`, every touched meta.yaml must carry a `human_edits` entry.
 
-No network, no model: it reads the PR body, the list of changed files and the
-meta.yaml files in the checkout.
+It also checks scope and size (one topic, one lab, material apart from code,
+<= 400 changed lines of code), waived by the scope-exception/size-exception
+labels.
 
+No model. No network either, except `--verify-runs` (CI only): that mode asks
+the GitHub API, with `gh api`, whether the run cited under "Where it ran" is
+a green run of verify.yml on the PR's head commit. Everything else reads the
+PR body, the list of changed files and the meta.yaml files in the checkout.
+
+    # by hand
     scripts/check_pr.py --title "docs: x" --body-file body.md --files a b c
-    scripts/check_pr.py --event "$GITHUB_EVENT_PATH" --base origin/main   # CI
+
+    # CI (.github/workflows/verify.yml, job pr-format), step 1: the description
+    scripts/check_pr.py --event "$GITHUB_EVENT_PATH" --labels-file labels.txt \
+        --base origin/<base> --label-file site-label.txt --runs-file cited-runs.txt
+    # step 2: the cited run, against the API
+    scripts/check_pr.py --verify-runs cited-runs.txt --repo <owner/name> --head <sha>
 """
 from __future__ import annotations
 
@@ -36,7 +52,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parent.parent
 
-SECTIONS = ("What and why", "Kind", "Provenance", "Evidence",
+SECTIONS = ("What and why", "Kind", "Provenance", "Evidence", "Authorship",
             "How to test it from a clean clone", "Risk and rollback", "Depends on")
 TYPES = ("feat", "fix", "docs", "test", "ci", "chore", "refactor", "perf", "build",
          "style", "revert", "i18n", "content", "lab", "video")
@@ -107,6 +123,14 @@ def check(title: str, body: str, files: list[str], root: Path = REPO) -> list[st
         elif not found[name]:
             problems.append(f"empty section: ## {name}")
 
+    if "Evidence" in found and not cited_runs(body):
+        problems.append("Evidence: add a '### Where it ran' subsection linking the CI run on this "
+                        "PR's head commit (github.com/<owner>/<repo>/actions/runs/<id>); the "
+                        "'where-it-ran' comment CI posts has the line ready to paste")
+
+    if "Authorship" in found and "Provenance" in found:
+        problems += authorship(found["Authorship"], declared(found["Provenance"]))
+
     impact = site_impact(files)
     site = re.search(r"^\s*[-*]?\s*Site:\s*(\S+)", found.get("Kind", ""), re.M)
     if not site:
@@ -147,10 +171,199 @@ def check(title: str, body: str, files: list[str], root: Path = REPO) -> list[st
     return problems
 
 
+# --- authorship: who wrote it, who found what, who fixed it -----------------
+
+AUTHOR_ROW = re.compile(r"^\|\s*Author\s*\|([^|]*)\|", re.M | re.I)
+LEDGER_COLUMNS = 9  # # · found by · head · severity · finding · fixed by · fix · verified by · status
+STATUS = re.compile(r"^(fixed|open|rejected\s*[—–:-]+\s*\S.*)$", re.I)
+
+
+def _cells(line: str) -> list[str]:
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def ledger_rows(authorship_text: str) -> list[list[str]] | None:
+    """The data rows of '### Findings ledger' (None if the subsection is missing)."""
+    match = re.search(r"^###\s+Findings ledger\s*$(.*?)(?=^###\s|\Z)", authorship_text, re.M | re.S)
+    if not match:
+        return None
+    rows = []
+    for line in match.group(1).splitlines():
+        if not line.strip().startswith("|"):
+            continue
+        cells = _cells(line)
+        if cells[0] == "#" or all(re.fullmatch(r":?-+:?", c) for c in cells if c):
+            continue  # header or separator
+        rows.append(cells)
+    return rows
+
+
+def authorship(text: str, prov: dict[str, str]) -> list[str]:
+    """Who is declared as author agrees with Provenance; the findings ledger is well formed."""
+    problems = []
+    row = AUTHOR_ROW.search(text)
+    who = row.group(1).strip() if row else ""
+    kind = re.match(r"(?i)(ai|human)\s*:", who)
+    if not kind:
+        problems.append("Authorship: add an Author row, '| Author | Human: <who> | …' or "
+                        "'| Author | AI: <agent> · <model> | …'")
+    else:
+        said = prov.get("author", "").lower()
+        if said in ("ai", "human") and kind.group(1).lower() != said:
+            problems.append(f"Authorship: the Author row says {kind.group(1)}, Provenance says Author: {said}")
+        models = [m.strip() for m in prov.get("model", "").split(",") if m.strip() and m.strip() != "none"]
+        if kind.group(1).lower() == "ai" and models and not any(m in who for m in models):
+            problems.append(f"Authorship: the Author row must name the model Provenance declares ({', '.join(models)})")
+    rows = ledger_rows(text)
+    if rows is None:
+        problems.append("Authorship: add a '### Findings ledger' subsection (its table may have no rows yet)")
+        return problems
+    for cells in rows:
+        ref = cells[0] or "?"
+        if len(cells) != LEDGER_COLUMNS:
+            problems.append(f"Findings ledger row {ref}: {len(cells)} columns, expected {LEDGER_COLUMNS}")
+            continue
+        if not cells[1]:
+            problems.append(f"Findings ledger row {ref}: 'Found by' is empty")
+        if not STATUS.match(cells[8]):
+            problems.append(f"Findings ledger row {ref}: status must be fixed, open or "
+                            f"'rejected — <reason>', not {cells[8]!r}")
+        elif cells[8].lower() == "fixed" and not (cells[5] and cells[6]):
+            problems.append(f"Findings ledger row {ref}: fixed, but 'Fixed by' or 'Fix' is empty")
+    return problems
+
+
+# --- scope: one concern per PR (CONTRIBUTING → Size and scope) ---------------
+
+CODE_LIMIT = 400                     # changed lines of code, generated files excluded
+GENERATED = ("STATUS.md", "MODELS.md")
+LAB = re.compile(r"^certs/([^/]+)/([^/]+)/lab/")
+CODE = re.compile(r"^(teach/|scripts/|tests/(?!fixtures/)|deploy/|\.github/|Makefile$|pyproject\.toml$)")
+SCOPE_LABEL = "scope-exception"      # set by a maintainer, never by the check
+SIZE_LABEL = "size-exception"
+
+
+def kinds(files: list[str]) -> dict[str, set]:
+    """What a PR touches, by kind: material (topic/lang dirs), labs, code, docs."""
+    out: dict[str, set] = {"material": set(), "lab": set(), "code": set(), "docs": set()}
+    for f in (f.replace("\\", "/") for f in files):
+        if MATERIAL.match(f):
+            out["material"].add("/".join(f.split("/")[1:4]))
+        elif LAB.match(f):
+            out["lab"].add("/".join(f.split("/")[1:3]))
+        elif CODE.match(f):
+            out["code"].add(f)
+        else:
+            out["docs"].add(f)
+    return out
+
+
+def scope(files: list[str], code_lines: int | None = None, labels: set | None = None) -> list[str]:
+    """Problems with the shape of a PR, independent of its description."""
+    labels = labels or set()
+    k = kinds(files)
+    problems = []
+    if SCOPE_LABEL not in labels:
+        if len(k["material"]) > 1:
+            problems.append(f"scope: material in {len(k['material'])} topic/language directories "
+                            f"({', '.join(sorted(k['material'])[:4])}…); one per PR — stack the rest "
+                            "with 'Depends on'")
+        if len(k["lab"]) > 1:
+            problems.append(f"scope: {len(k['lab'])} labs changed; one lab per PR")
+        if (k["material"] or k["lab"]) and k["code"]:
+            problems.append("scope: study material and code in the same PR; split them "
+                            f"(code: {', '.join(sorted(k['code'])[:3])}…)")
+    touched_generated = [f for f in files if f in GENERATED]
+    if touched_generated and not any(f.startswith("certs/") for f in files):
+        problems.append(f"generated file changed without any certs/ change ({', '.join(touched_generated)}): "
+                        "regenerate it with `teach status`, never edit it by hand")
+    if code_lines is not None and code_lines > CODE_LIMIT and SIZE_LABEL not in labels:
+        problems.append(f"size: {code_lines} changed lines of code (limit {CODE_LIMIT}, generated files "
+                        "excluded); split it into stacked PRs ('Depends on: #N')")
+    return problems
+
+
+RUN_LINK = re.compile(r"github\.com/([\w.-]+/[\w.-]+)/actions/runs/(\d+)")
+
+
+def cited_runs(body: str) -> list[tuple[str, str]]:
+    """(repo, run id) linked under '### Where it ran' inside Evidence."""
+    evidence = sections(body).get("Evidence", "")
+    match = re.search(r"^###\s+Where it ran.*?$(.*?)(?=^###\s|\Z)", evidence, re.M | re.S)
+    return RUN_LINK.findall(match.group(1)) if match else []
+
+
+# --- the cited run, checked against the API (the only networked part) --------
+
+VERIFY_WORKFLOW = ".github/workflows/verify.yml"
+PROOF_JOBS = ("verify", "e2e")
+
+
+def judge_run(run: dict, jobs: dict, head_sha: str) -> str | None:
+    """Why a cited run does not prove this head, or None if it does.
+
+    Jobs named verify/e2e are not enough: any workflow (one the PR itself adds)
+    can name its jobs that way, so the run must come from verify.yml and from a
+    pull_request event. The jobs, not the run's conclusion: the run that proves
+    the code also contains pr-format, which was red until the link was pasted.
+    """
+    if run.get("head_sha") != head_sha:
+        return f"is on head {str(run.get('head_sha'))[:7]}, not the PR head {head_sha[:7]}"
+    if run.get("path") != VERIFY_WORKFLOW:
+        return f"comes from {run.get('path')}, not {VERIFY_WORKFLOW}"
+    if run.get("event") != "pull_request":
+        return f"was triggered by {run.get('event')}, not pull_request"
+    states = {j.get("name"): j.get("conclusion") for j in jobs.get("jobs") or [] if j.get("name") in PROOF_JOBS}
+    if states != {name: "success" for name in PROOF_JOBS}:
+        return "has " + (", ".join(f"{k}={v}" for k, v in sorted(states.items())) or "no verify/e2e jobs")
+    return None
+
+
+def gh_api(path: str) -> dict:
+    """`gh api <path>` as JSON; its error goes to the log instead of being swallowed."""
+    result = subprocess.run(["gh", "api", path], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"gh api {path}: {result.stderr.strip() or result.stdout.strip()}")
+    return json.loads(result.stdout)
+
+
+def verify_runs(cited: list[tuple[str, str]], repo: str, head_sha: str, fetch=gh_api) -> bool:
+    """True if at least one cited run proves this head; prints why each one does or does not."""
+    ok = False
+    for cited_repo, run in cited:
+        if cited_repo.lower() != repo.lower():  # GitHub owner/repo names ignore case
+            print(f"run {run} belongs to {cited_repo}, not {repo}")
+            continue
+        try:
+            reason = judge_run(fetch(f"repos/{repo}/actions/runs/{run}"),  # canonical name, not the pasted one
+                               fetch(f"repos/{repo}/actions/runs/{run}/jobs"), head_sha)
+        except (RuntimeError, ValueError) as exc:
+            reason = f"could not be read: {exc}"
+        print(f"run {run}: " + (reason or f"{VERIFY_WORKFLOW}, verify and e2e green on {head_sha[:7]}"))
+        ok = ok or reason is None
+    return ok
+
+
+def read_labels(path: Path) -> set:
+    """One label per line, as `gh api .../labels --jq '.[].name'` writes them."""
+    return {line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()}
+
+
 def changed_files(base: str) -> list[str]:
     result = subprocess.run(["git", "diff", "--name-only", f"{base}...HEAD"],
                             cwd=REPO, capture_output=True, text=True, check=True)
     return [line for line in result.stdout.splitlines() if line]
+
+
+def code_lines_changed(base: str) -> int:
+    result = subprocess.run(["git", "diff", "--numstat", f"{base}...HEAD"],
+                            cwd=REPO, capture_output=True, text=True, check=True)
+    total = 0
+    for line in result.stdout.splitlines():
+        added, removed, path = line.split("\t", 2)
+        if added != "-" and CODE.match(path) and path not in GENERATED:
+            total += int(added) + int(removed)
+    return total
 
 
 def main() -> int:
@@ -162,17 +375,45 @@ def main() -> int:
     parser.add_argument("--base", help="git ref to diff against, e.g. origin/main")
     parser.add_argument("--files", nargs="*", default=None)
     parser.add_argument("--label-file", help="write the site label here (for the labelling step)")
+    parser.add_argument("--runs-file",
+                        help="write the CI runs cited under 'Where it ran' here, one 'repo id' per "
+                             "line, for the job step that checks them against the API")
+    parser.add_argument("--labels-file",
+                        help="the PR's current labels, one per line (read live in CI); they replace "
+                             "the event payload's, which a re-run replays as they were")
+    parser.add_argument("--verify-runs", metavar="RUNS_FILE",
+                        help="networked mode, for CI only: check the runs listed in RUNS_FILE "
+                             "(from --runs-file) with `gh api`; needs --repo and --head")
+    parser.add_argument("--repo", help="owner/name of this repository (with --verify-runs)")
+    parser.add_argument("--head", help="the PR's head commit SHA (with --verify-runs)")
     args = parser.parse_args()
 
+    if args.verify_runs:
+        cited = [tuple(line.split()) for line in Path(args.verify_runs).read_text(encoding="utf-8").splitlines()
+                 if len(line.split()) == 2]
+        if verify_runs(cited, args.repo, args.head):
+            return 0
+        print(f"::error::'Where it ran' must link a green run of {VERIFY_WORKFLOW} in {args.repo} on the "
+              f"head commit {args.head}. Copy the line from the where-it-ran comment and edit the description.")
+        return 1
+
+    labels: set = set()
     if args.event:
         pr = json.loads(Path(args.event).read_text(encoding="utf-8"))["pull_request"]
         title, body = pr["title"], pr.get("body") or ""
+        labels = {label["name"] for label in pr.get("labels") or []}
     else:
         title = args.title or ""
         body = Path(args.body_file).read_text(encoding="utf-8") if args.body_file else ""
+    if args.labels_file and Path(args.labels_file).is_file():
+        labels = read_labels(Path(args.labels_file))  # live labels replace the replayed payload's
     files = args.files if args.files is not None else (changed_files(args.base) if args.base else [])
+    code_lines = code_lines_changed(args.base) if args.base and args.files is None else None
 
-    problems = check(title, body, files)
+    problems = check(title, body, files) + scope(files, code_lines, labels)
+    if args.runs_file:
+        Path(args.runs_file).write_text("".join(f"{repo} {run}\n" for repo, run in cited_runs(body)),
+                                        encoding="utf-8")
     impact = site_impact(files)
     print(f"site: {impact}")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
