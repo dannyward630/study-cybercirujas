@@ -35,12 +35,11 @@ from collections import defaultdict
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO))
 CACHE = Path("/tmp/teach-citations-cache.json")
 
-REFS_SECTION = re.compile(
-    r"^#+ *(?:Referencias|References|Références|Referenzen|Referências|参考文献|参考)\s*$(.*)",
-    re.MULTILINE | re.DOTALL | re.IGNORECASE,
-)
+from teach.core.references import section as references_section  # noqa: E402  (one definition)
+
 URL = re.compile(r"https?://[^\s)\]>\"'`]+")
 
 # 403/429/418 mean bot blocking (gnu.org, freedesktop), not dead links.
@@ -49,10 +48,10 @@ BLOCKED = {401, 403, 405, 418, 429, 503}
 
 
 def citations(path: Path) -> set[str]:
-    match = REFS_SECTION.search(path.read_text(errors="replace"))
-    if not match:
+    refs = references_section(path.read_text(encoding="utf-8", errors="replace"))
+    if refs is None:
         return set()
-    return {u.rstrip(".,;:>") for u in URL.findall(match.group(1))}
+    return {u.rstrip(".,;:>") for u in URL.findall(refs)}
 
 
 def status(url: str, cache: dict) -> int | str:
