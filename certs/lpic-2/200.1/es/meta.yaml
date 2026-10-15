@@ -1,0 +1,76 @@
+generated_at: '2026-10-15T11:27:05'
+lang: es
+translated_from: en
+backend: claude
+model: claude-opus-5
+sources:
+- https://www.lpi.org/our-certifications/exam-201-202-objectives/
+human_edits:
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: 200.1 header: LPI weight 6 and LPI''s partial list of files, terms and utilities quoted verbatim (commit 4c89068)'
+  source: https://www.lpi.org/our-certifications/exam-201-202-objectives/
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: sample output declared illustrative, not captured; iostat field change dated to sysstat 11.5.7, svctm removal to 12.1.2, vmstat guest column to procps-ng 4.0.4 (commit c40554a)'
+  source: https://github.com/sysstat/sysstat/blob/master/CHANGES
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: sysstat playbook: override directory created before the copy into it; ENABLED="true" for debian-sa1 (commit 31582c6)'
+  source: debian:12 sysstat 12.6.1 /usr/lib/sysstat/debian-sa1, read in a container
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: node_exporter unit exports pgscan/pgsteal vmstat fields the reclaim alert uses (commit 707c7ca)'
+  source: https://github.com/prometheus/node_exporter/blob/master/collector/vmstat_linux.go
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: wire-rate table: every row is an L2 frame with its payload; unsourced per-core Mpps figure removed (commit 93ff119)'
+  source: arithmetic in the table; tests/test_lpic2_200_1_review.py
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: citations: LPI 201/202 objective URLs replaced by the live exam-201-202-objectives page; iproute2 points at git.kernel.org (commit 3882a32)'
+  source: https://www.lpi.org/our-certifications/exam-201-202-objectives/
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: exercises lab 5C: nf_conntrack_max set on the VM (read-only in non-init namespaces) to 32, below the 64 streams, and restored afterwards (commit 9e3e6f3)'
+  source: https://github.com/torvalds/linux/blob/master/net/netfilter/nf_conntrack_standalone.c
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review round 2 by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: Q16: MemAvailable barely moves with more Dirty, per si_mem_available() (commit 8fc6105)'
+  source: https://github.com/torvalds/linux/blob/master/mm/show_mem.c
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review round 2 by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: ss LISTEN sample: Recv-Q 129 with backlog 128, the most the kernel reports (commit 12cbb26)'
+  source: https://github.com/torvalds/linux/blob/master/net/ipv4/tcp_diag.c
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review round 2 by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: conntrack entry size read from /sys/kernel/slab/nf_conntrack/slab_size (256 B measured on 6.18); slabtop row, sizing example and hash sizing follow (commits 2a60b03, 78fee03)'
+  source: https://www.kernel.org/doc/html/latest/networking/nf_conntrack-sysctl.html
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review round 2 by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: ceilings table in section 11: per-core packet rate removed, measured per host (commit 71dc419)'
+  source: 'none: removal of an unsourced figure'
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review round 2 by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: Mathis bound with the 1.22 constant, same form as the exercises, paper added to References (commit 5e8eac9)'
+  source: https://dl.acm.org/doi/10.1145/263932.264023
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review round 2 by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: meta.yaml sources cite exam-201-202-objectives/ (commit ce46970)'
+  source: https://www.lpi.org/our-certifications/exam-201-202-objectives/
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review round 3 by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: Q12 and the content note: cpu full is printed since 5.13, zero system-wide, real per cgroup; cpu pressure samples show the full line (commit 6353da9)'
+  source: https://docs.kernel.org/accounting/psi.html
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review round 3 by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: Q47 and lab 5D: netdev_budget_usecs default is 2 jiffies, 8000 us at HZ=250 (Debian 12) (commit 6037891)'
+  source: https://github.com/torvalds/linux/blob/master/net/core/hotdata.c
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review round 3 by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: Q25: memory.events max and oom as cgroup-v2.rst defines them (commit 1fcc0ad)'
+  source: https://docs.kernel.org/admin-guide/cgroup-v2.html
+- date: '2026-10-15'
+  author: 'study-author (AI agent, claude-opus-5-5), after review round 3 by fable (revisor-pr) on PR #6'
+  summary: 'mirrors the English fix: tool table: unsourced 1-5 % perf overhead replaced by a qualitative cost (commit 47a522e)'
+  source: 'none: removal of an unsourced figure'
