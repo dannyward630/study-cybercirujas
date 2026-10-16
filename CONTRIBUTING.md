@@ -72,6 +72,34 @@ is), or privately to the maintainer; it is removed first and discussed after.
 Exam candidates sign the vendors' NDAs: this rule protects them as much as the
 project.
 
+### Raising a topic's quality score
+
+Every `certs/<cert>/<topic>/<lang>/meta.yaml` has a `quality:` block: the
+score (0-100), the level (*Verified*, *AI beta*, *Draft*) and every check
+behind it, each `pass`, `fail` or `not_run` with its evidence. It is written by
+`make quality` (`scripts/quality_score.py`), **never by hand**, and CI fails
+if a block is not what the files give — so after generating or editing
+material, run `make quality CERT=<cert>` and commit the meta.yaml it changed.
+The weights and thresholds are in `quality_weights.yaml`.
+
+To raise a topic's score, turn its `not_run` and `fail` entries into `pass`:
+
+| Check | How it passes |
+|---|---|
+| `quality_floor` | content.md and exercises.md meet the floor in `pipeline.yaml` |
+| `provenance` | meta.yaml names a real backend and model (not `unknown`) |
+| `sources` | a References section whose URLs mostly belong to projects in `docs/sources.yaml` |
+| `k8s_manifests` | every YAML/JSON block parses; no removed Kubernetes API |
+| `translation_gate` | the translation keeps the source's code blocks, URLs, headings and length |
+| `source_chain` | the link declares its origin (docs/PRINCIPLES.md → The source chain) and it has not changed since |
+| `lab` | the topic's lab ran in the study-lab runner and its `lab.yaml` records `verified` |
+| `independent_review` | a `reviews:` entry in meta.yaml: `{by, link, date, result: pass}` — `fable (revisor-pr)` or Copilot, with the review's link |
+| `human_review` | a `human_edits:` entry (see *Provenance is mandatory*) |
+| `citations_resolve`, `groundedness` | not run in CI today (network, and a model to be chosen); they stay `not_run` |
+
+*Verified* needs a score of 85 or more **and** a passed lab and independent
+review; a high score from automatic checks alone stops at *AI beta*.
+
 ## Conventions
 
 - **Branches:** `<type>/<short-topic>`, e.g. `fix/cka-1.1-reclaim-policy`,
@@ -222,6 +250,7 @@ installing dependencies. CI runs the same targets.
 | content: quality floor, manifests, Kubernetes APIs, provenance, sources, syllabus, versions; README/API tables up to date | `scripts/check_*.py`, `gen_*.py --check` | `make verify-ci` |
 | docs consistent with the repo: relative links and anchors, paths in code, `make` targets and `teach` commands exist, generated files fresh | `scripts/check_docs.py`, `tests/test_check_docs.py` | `make check-docs` (CI: job `docs-consistency`) |
 | the code graph is what the tree builds (fails when a PR touches `teach/` or `scripts/` and did not run `make graph`) | `scripts/check_graph.py --regenerate` | `make graph-setup && make graph` (free, tree-sitter only; CI: job `docs-consistency`) |
+| the quality score: every topic's `quality:` block is what the files give (after generating or editing material) | `scripts/quality_score.py --check`, `tests/test_quality_score.py` | `make quality CERT=<cert>`, then commit the meta.yaml it changed |
 | the PR description: required sections, Conventional Commit title, declared provenance = `meta.yaml`, Where it ran on the head commit, size and scope | `scripts/check_pr.py`, `tests/test_check_pr.py` | `scripts/check_pr.py --title "<title>" --body-file <body.md> --base origin/main` (CI runs it on every PR) |
 | everything fast above, in one go | `tests/` | `make test` |
 
