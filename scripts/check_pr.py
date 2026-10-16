@@ -37,6 +37,16 @@ checked. Any other file in that PR, or any other branch, gets the full check. Th
 exempt from the sign-off check, and only while every commit is authored by
 github-actions[bot].
 
+- the Scope section does not declare exactly one of small | medium | large |
+  exam-version (CONTRIBUTING -> How big is my change?);
+- `catalog.yaml` changes a cert's `tracked_version` or `sources.objectives`
+  (the exam version the material is built against) and the PR is not labelled
+  the PR's real GitHub milestone is not an upgrade milestone (title
+  "<CERT> v<version> upgrade", e.g. "CKA & CKAD v1.37 upgrade") or the Scope
+  section does not declare `Scope: exam-version`. The label is only
+  classification and the description is author text: neither authorizes. A
+  links fix cannot move the version.
+
 It also checks scope and size (one topic, one lab, material apart from code,
 <= 400 changed lines of code), waived by the scope-exception/size-exception
 labels.
@@ -50,7 +60,7 @@ PR body, the list of changed files and the meta.yaml files in the checkout.
     scripts/check_pr.py --title "docs: x" --body-file body.md --files a b c
 
     # CI (.github/workflows/verify.yml, job pr-format), step 1: the description
-    scripts/check_pr.py --event "$GITHUB_EVENT_PATH" --labels-file labels.txt \
+    scripts/check_pr.py --event "$GITHUB_EVENT_PATH" --labels-file labels.txt --milestone-file milestone.txt \
         --base origin/<base> --label-file site-label.txt --runs-file cited-runs.txt
     # step 2: the cited run, against the API
     scripts/check_pr.py --verify-runs cited-runs.txt --repo <owner/name> --head <sha>
@@ -69,7 +79,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parent.parent
 
-SECTIONS = ("What and why", "Kind", "Provenance", "Evidence", "Authorship",
+SECTIONS = ("What and why", "Kind", "Scope", "Provenance", "Evidence", "Authorship",
             "How to test it from a clean clone", "Risk and rollback", "Depends on")
 TYPES = ("feat", "fix", "docs", "test", "ci", "chore", "refactor", "perf", "build",
          "style", "revert", "i18n", "content", "lab", "video")
@@ -221,6 +231,8 @@ def check(title: str, body: str, files: list[str], root: Path = REPO,
             problems.append(f"missing section: ## {name}")
         elif not found[name]:
             problems.append(f"empty section: ## {name}")
+    if found.get("Scope"):
+        problems += declared_scope(found["Scope"])[1]
 
     if "Evidence" in found and not cited_runs(body):
         problems.append("Evidence: add a '### Where it ran' subsection linking the CI run on this "
@@ -270,6 +282,66 @@ def check(title: str, body: str, files: list[str], root: Path = REPO,
             problems.append(f"{directory}: Author is human but meta.yaml has no human_edits "
                             "entry (CONTRIBUTING.md → Provenance is mandatory)")
     return problems
+
+
+# --- scope declared in the description, and exam-version changes -------------
+
+SCOPES = ("small", "medium", "large", "exam-version")
+SCOPE_LINE = re.compile(r"^\s*[-*]?\s*Scope:\s*(.*?)\s*$", re.M | re.I)
+# An upgrade milestone is named "<CERT> v<version> upgrade" ("CKA & CKAD v1.37 upgrade"). It is
+# read from the PR itself (the event, or live with --milestone-file), never from its description.
+UPGRADE_MILESTONE = re.compile(r"^.+ v\d+(\.\d+)* upgrade$")
+CATALOG = "catalog.yaml"
+
+
+def declared_scope(text: str) -> tuple[str | None, list[str]]:
+    """The one scope the Scope section declares, and the problems if it is not exactly one."""
+    line = SCOPE_LINE.search(text)
+    value = line.group(1).strip("`").lower() if line else ""
+    if value in SCOPES:
+        return value, []
+    return None, [f"Scope: add a 'Scope: <one of {' | '.join(SCOPES)}>' line with exactly one value "
+                  "(CONTRIBUTING -> How big is my change?)"]
+
+
+def head_catalog() -> str | None:
+    path = REPO / CATALOG
+    return path.read_text(encoding="utf-8") if path.exists() else None
+
+
+def exam_version_changes(base_text: str | None, head_text: str | None) -> list[str]:
+    """Certs whose tracked_version or sources.objectives differ between two catalog.yaml texts.
+
+    A cert that appears or disappears counts too. Pure: no git, no network."""
+    def load(text):
+        certs = (yaml.safe_load(text) or {}).get("certs") or {} if text else {}
+        return {key: (str(c.get("tracked_version")), str((c.get("sources") or {}).get("objectives")))
+                for key, c in certs.items() if isinstance(c, dict)}
+    before, after = load(base_text), load(head_text)
+    return sorted(key for key in set(before) | set(after) if before.get(key) != after.get(key))
+
+
+def exam_version(changed: list[str], milestone: str | None, declared: str | None) -> list[str]:
+    """Problems if the exam version moved outside its own milestone's PR.
+
+    `milestone` is the title of the PR's real milestone; `declared` is the scope its description declares."""
+    if not changed:
+        return []
+    problems = []
+    names = ", ".join(changed[:4]) + ("…" if len(changed) > 4 else "")
+    head = f"exam version: {CATALOG} changes tracked_version or objectives of {names}, but "
+    if not (milestone and UPGRADE_MILESTONE.match(milestone.strip())):
+        problems.append(head + f"the PR's milestone is {milestone!r}, not an upgrade milestone "
+                        "('<CERT> v<version> upgrade'). Only that milestone's final PR may move the version; "
+                        "a links fix must not (CONTRIBUTING -> How big is my change?)")
+    if declared != "exam-version":
+        problems.append(head + f"the Scope section declares {declared!r}: declare 'Scope: exam-version'")
+    return problems
+
+
+def read_milestone(path: Path) -> str | None:
+    """The title `gh api .../issues/N --jq '.milestone.title // empty'` writes; empty means none."""
+    return path.read_text(encoding="utf-8").strip() or None
 
 
 # --- authorship: who wrote it, who found what, who fixed it -----------------
@@ -525,6 +597,9 @@ def main() -> int:
     parser.add_argument("--base", help="git ref to diff against, e.g. origin/main")
     parser.add_argument("--files", nargs="*", default=None)
     parser.add_argument("--label-file", help="write the site label here (for the labelling step)")
+    parser.add_argument("--milestone-file",
+                        help="the PR's current milestone title (read live in CI; empty = none); it replaces "
+                             "the event payload's, like --labels-file")
     parser.add_argument("--runs-file",
                         help="write the CI runs cited under 'Where it ran' here, one 'repo id' per "
                              "line, for the job step that checks them against the API")
@@ -548,6 +623,7 @@ def main() -> int:
         return 1
 
     labels: set = set()
+    milestone = None
     head_ref = None
     number = pr_author = None
     if args.event:
@@ -557,11 +633,14 @@ def main() -> int:
         number = pr.get("number")
         pr_author = (pr.get("user") or {}).get("login")
         labels = {label["name"] for label in pr.get("labels") or []}
+        milestone = (pr.get("milestone") or {}).get("title")
     else:
         title = args.title or ""
         body = Path(args.body_file).read_text(encoding="utf-8") if args.body_file else ""
     if args.labels_file and Path(args.labels_file).is_file():
         labels = read_labels(Path(args.labels_file))  # live labels replace the replayed payload's
+    if args.milestone_file and Path(args.milestone_file).is_file():
+        milestone = read_milestone(Path(args.milestone_file))  # so does the live milestone
     files = args.files if args.files is not None else (changed_files(args.base) if args.base else [])
     code_lines = code_lines_changed(args.base) if args.base and args.files is None else None
 
@@ -572,6 +651,11 @@ def main() -> int:
     problems = check(title, body, authored, head_ref=head_ref) + scope(authored, code_lines, labels, all_files=files)
     if args.base:
         problems += dco(commits_of(args.base), pr_author, number, head_ref, files)
+
+
+    if args.base and CATALOG in files and not is_graph_refresh(head_ref, files):
+        problems += exam_version(exam_version_changes(base_texts([CATALOG], args.base)[CATALOG], head_catalog()),
+                                 milestone, declared_scope(sections(body).get("Scope", ""))[0])
     # The graph bot's PR cites no run, and an empty runs file would still make
     # the workflow's "cited run" step run and fail: write nothing for it.
     if args.runs_file and not is_graph_refresh(head_ref, files):
