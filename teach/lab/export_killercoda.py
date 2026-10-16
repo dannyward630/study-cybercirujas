@@ -21,6 +21,7 @@ IMAGES = {"linux": {0: "ubuntu"}, "kind": {0: "kubernetes-kubeadm-1node", 1: "ku
 IMAGES["k3s"] = IMAGES["kind"]
 RULE = re.compile(r"^\s*#\s*[-=]{5,}\s*$")
 SOLUTION = re.compile(r"^\s*#.*(SOLUCI[OÓ]N|SOLUTION)", re.I)
+RPM = re.compile(r"^[^#\n]*\b(dnf|yum|rpm|zypper)\s+(install|-i|-q|-e|-U|erase|remove|update)", re.M)
 FORBIDDEN = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY|AKIA(?![0-9A-Z]*EXAMPLE)[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}"
                        r"|/home/(alumno|rino|dalmine)|/mnt/[a-z]/|C:\\Users|Nextcloud|\.super6c", re.I)
 
@@ -56,7 +57,8 @@ def _run_line(lab: spec.Lab, action: str) -> str:
     mode = (lab.spec.get("modes") or {}).get(action) or {}
     cmd = " ".join(["timeout", str(int(lab.spec["timeout"][action])), "bash", "./" + shlex.quote(lab.spec["script"]),
                     *[shlex.quote(a) for a in lab.contract[action]]])
-    return f"printf %b {shlex.quote(mode['stdin'])} | {cmd}" if mode.get("stdin") else cmd
+    # never interactive: a confirmation prompt without a TTY would exit silently under `set -e`
+    return f"printf %b {shlex.quote(mode['stdin'])} | {cmd}" if mode.get("stdin") else cmd + " </dev/null"
 
 
 def _env(lab: spec.Lab) -> str:
@@ -68,7 +70,7 @@ def _verify_test(lab: spec.Lab) -> str:
     return '[ "$code" -eq 0 ]' + (f' && echo "$out" | grep -Eq -e {shlex.quote(rx)}' if rx else "")
 
 
-def scenario(lab: spec.Lab, allow_unverified: bool = False) -> dict[str, str]:
+def scenario(lab: spec.Lab, allow_unverified: bool = False, needs: tuple = ()) -> dict[str, str]:
     """Relative path -> text for one scenario (the lab's scripts go under assets/)."""
     s = lab.spec
     if lab.errors or not lab.contract_ok:
@@ -80,6 +82,8 @@ def scenario(lab: spec.Lab, allow_unverified: bool = False) -> dict[str, str]:
     image = IMAGES.get(s["requires"], {}).get(int(s.get("nodes") or 0))
     if not image:
         raise ExportError(f"{lab.lab_id}: no Killercoda image for requires={s['requires']} nodes={s.get('nodes')}")
+    if RPM.search((lab.directory / s["script"]).read_text(encoding="utf-8")):
+        raise ExportError(f"{lab.lab_id}: installs with rpm/dnf (Killercoda is Ubuntu)")
     home = f"/opt/study-lab/{s['cert']}-{s['topic']}"
     files = [s["script"], *[f for f in (s.get("setup") or []) if f != s["script"]]]
     assets, solution = {}, ""
@@ -90,6 +94,8 @@ def scenario(lab: spec.Lab, allow_unverified: bool = False) -> dict[str, str]:
         body, sol = split_solution(p.read_text(encoding="utf-8"))
         assets[f"assets/{name}"] = body
         solution = solution or (sol if name == s["script"] else "")
+    caps = load_envs()["capabilities"]
+    setup = "".join(caps[n]["script"] for n in needs if n in caps)
     wait = "kubectl wait --for=condition=Ready node --all --timeout=180s || true\n" if s["requires"] != "linux" else ""
     mv = "\n".join(f"[ -f /root/{shlex.quote(n)} ] && mv /root/{shlex.quote(n)} \"$LAB/\"" for n in files)
     hints = "\n".join(f"<details><summary>Hint {i}</summary>\n\n{h}\n\n</details>\n" for i, h in enumerate(s.get("hints") or [], 1))
@@ -101,15 +107,26 @@ mkdir -p "$LAB"
 trap 'touch /tmp/finished' EXIT
 for i in $(seq 1 60); do [ -f /root/{shlex.quote(s['script'])} ] && break; sleep 1; done
 {mv}
-{wait}{_env(lab)}
+{wait}{setup}{_env(lab)}
 cd "$LAB" || exit 1
-{_run_line(lab, 'break')} > "$LAB/break.out" 2>&1 || {{ echo failed > /tmp/study-lab-setup-failed; cat "$LAB/break.out"; }}
+# break is idempotent by contract; a fresh cluster can still be settling (e.g. the default ServiceAccount), so retry
+for attempt in 1 2 3; do
+  {_run_line(lab, 'break')} > "$LAB/break.out" 2>&1 && ok=1 && break
+  sleep 10
+done
+[ "${{ok:-}}" = 1 ] || {{ echo failed > /tmp/study-lab-setup-failed; cat "$LAB/break.out"; }}
 """,
         "foreground.sh": f"""#!/bin/bash
 echo "Preparing the lab..."
 while [ ! -f /tmp/finished ]; do sleep 1; done
 clear
 if [ -f /tmp/study-lab-setup-failed ]; then echo "The lab setup failed: see {home}/break.out and /var/log/killercoda"; else cat {home}/break.out; fi
+""",
+        "cleanup.sh": f"""#!/bin/bash
+# Not shown to the student: the parity test (study-lab test) runs it to prove the lab cleans up after itself.
+{_env(lab)}
+cd {home} || exit 1
+{_run_line(lab, 'cleanup')}
 """,
         "verify.sh": f"""#!/bin/bash
 # Exit 0 only when the lab's own verify mode says solved.
@@ -146,18 +163,34 @@ echo "$out"
     return out
 
 
-def slug(topic: str) -> str:
-    return "t-" + re.sub(r"[^a-z0-9]+", "-", str(topic).lower()).strip("-")
+def slug(topic: str, title: str = "") -> str:
+    return re.sub(r"[^a-z0-9]+", "-", f"{topic} {title}".lower()).strip("-")[:48].strip("-")
 
 
-def tree(labs: list[spec.Lab], names: dict[str, str] | None = None, allow_unverified: bool = False) -> dict[str, str]:
+def load_envs() -> dict:
+    """What Killercoda runs, pinned in deploy/killercoda/killercoda_envs.yaml (with how each value is known)."""
+    return yaml.safe_load((Path(__file__).resolve().parents[2] / "deploy" / "killercoda" / "killercoda_envs.yaml")
+                          .read_text(encoding="utf-8"))
+
+
+def tree(labs: list[spec.Lab], names: dict[str, str] | None = None, allow_unverified: bool = False,
+         needs: dict | None = None, evidence: dict | None = None, day: str = "", gated: list | None = None) -> dict[str, str]:
     """The whole mirror: <cert>/<topic>/... per lab, a structure.json per cert (a Killercoda course) and one at the root."""
     names, out, certs = names or {}, {}, {}
     for lab in sorted(labs, key=lambda x: (x.spec["cert"], x.spec["topic"])):
         c, t = lab.spec["cert"], lab.spec["topic"]
-        for rel, text in scenario(lab, allow_unverified).items():
-            out[f"{c}/{slug(t)}/{rel}"] = text
-        certs.setdefault(c, []).append({"path": slug(t), "title": f"{t} {lab.spec['title']}"})
+        d = slug(t, lab.spec["title"])
+        files = scenario(lab, allow_unverified, tuple((needs or {}).get(f"{c}/{t}", ())))
+        if evidence is not None:   # the publish gate: no passing evidence for THIS scenario and today's environment, no scenario
+            from . import kc_test
+            ev = evidence.get(f"{c}/{d}")
+            if not kc_test.valid_for(ev, files, json.loads(files["index.json"])["backend"]["imageid"], day):
+                (gated if gated is not None else []).append(f"{c}/{t}: no passing tested.json for this scenario and today's environment")
+                continue
+            files["tested.json"] = json.dumps(ev, indent=2, ensure_ascii=False) + "\n"
+        for rel, text in files.items():
+            out[f"{c}/{d}/{rel}"] = text
+        certs.setdefault(c, []).append({"path": d, "title": f"{t} {lab.spec['title']}"})
     dump = lambda d: json.dumps(d, indent=2, ensure_ascii=False) + "\n"  # noqa: E731
     for c, items in certs.items():
         out[f"{c}/structure.json"] = dump({"title": names.get(c, c), "description": f"Break/fix labs for {names.get(c, c)}",
@@ -166,7 +199,14 @@ def tree(labs: list[spec.Lab], names: dict[str, str] | None = None, allow_unveri
         out[f"{c}/README.md"] = (f"# {names.get(c, c)}\n\n{len(items)} break/fix labs for {names.get(c, c)}: something is "
                                  "broken on purpose, you fix it, the lab checks it. Study material, exercises and the tutor "
                                  f"for this certification: {SITE} (syllabus: {REPO}/blob/main/certs/{c}.md).\n")
-    out["structure.json"] = dump({"items": [{"path": c, "title": names.get(c, c)} for c in sorted(certs)]})
+    probe = Path(__file__).resolve().parents[2] / "deploy" / "killercoda" / "probe"
+    for f in sorted(probe.rglob("*")):   # the environment probe: how we learn what Killercoda's images really have
+        if f.is_file():
+            out["probe/" + f.relative_to(probe).as_posix()] = f.read_text(encoding="utf-8")
+    out["probe/structure.json"] = dump({"title": "Environment probe", "description": "What the Killercoda images really have",
+                                        "items": [{"path": "ubuntu"}, {"path": "k8s"}]})
+    out["structure.json"] = dump({"items": [{"path": c, "title": names.get(c, c)} for c in sorted(certs)] +
+                                 [{"path": "probe", "title": "Environment probe"}]})
     return out
 
 
