@@ -50,13 +50,21 @@ def report(status: str, name: str, secs: float = 0.0, detail: str = "") -> None:
             print(f"        {line}")
 
 
-def check(name: str, cmd, warn_if_output: bool = False, fail_is_warn: bool = False) -> None:
+def graph_status(code: int, out: str) -> str:
+    """OK only when check_graph.py says so: exit 0 and its own `graph: OK` marker.
+
+    It exits 0 for a stale graph too (warning only), so the exit code alone is not enough, and
+    "any output" is wrong the other way: a fresh graph prints `graph: OK ...`."""
+    return "OK" if code == 0 and out.lstrip().startswith("graph: OK") else "WARN"
+
+
+def check(name: str, cmd, classify=None, fail_is_warn: bool = False) -> None:
     start = time.time()
     code, out = run(cmd)
     secs = time.time() - start
     if code != 0:
         report("WARN" if fail_is_warn else "FAIL", name, secs, out)
-    elif warn_if_output and out:
+    elif classify and classify(code, out) != "OK":
         report("WARN", name, secs, out)
     else:
         report("OK", name, secs)
@@ -139,7 +147,7 @@ def main() -> int:
     check("docs consistency (check_docs.py)", [str(VENV_PY), "scripts/check_docs.py"])
     if (REPO / ".venv" / "bin" / "graphify").exists():
         check("code graph (check_graph.py --regenerate, warn-only)",
-              [str(VENV_PY), "scripts/check_graph.py", "--regenerate"], warn_if_output=True, fail_is_warn=True)
+              [str(VENV_PY), "scripts/check_graph.py", "--regenerate"], classify=graph_status, fail_is_warn=True)
     else:
         report("WARN", "code graph not checked: graphify is not installed (`make graph-setup`); CI checks it, warn-only")
 

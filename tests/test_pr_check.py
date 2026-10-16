@@ -29,6 +29,15 @@ class PrCheckTests(unittest.TestCase):
         self.assertIn("pr-check.prepush", hook)
         self.assertIn("exit 0", hook)
 
+    def test_graph_ok_marker_is_ok_and_anything_else_is_warn(self):
+        sys.path.insert(0, str(REPO / "scripts"))
+        import pr_check
+        self.assertEqual(pr_check.graph_status(0, "graph: OK \u2014 the committed graph is what this tree builds (1 file)"), "OK")
+        self.assertEqual(pr_check.graph_status(0, "graph: possibly STALE \u2014 3 covered file(s) changed"), "WARN")
+        self.assertEqual(pr_check.graph_status(0, "graph: MISSING \u2014 run `make graph`"), "WARN")
+        self.assertEqual(pr_check.graph_status(1, "graph: OK"), "WARN")
+        self.assertEqual(pr_check.graph_status(0, ""), "WARN")
+
     def test_a_broken_description_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             body = Path(tmp) / "body.md"
