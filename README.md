@@ -333,7 +333,9 @@ calls a model and is for maintainers: [docs/OPERATING.md](docs/OPERATING.md).
   `content.md` / `exercises.md` of that language. Keep code blocks, commands and
   URLs exactly as in the English source.
 - **Code and checks**: `make setup && make test` runs the same offline checks
-  as CI (no API key, no model).
+  as CI (no API key, no model). Before you push, `make pr-check` runs what CI
+  runs on a PR (`QUICK=1`: about a minute)
+  ([how](CONTRIBUTING.md#check-before-you-push)).
 
 Everything else — conventions, provenance for hand edits, new labs, the test
 matrix — is in **[CONTRIBUTING.md](CONTRIBUTING.md)**. How decisions are made:

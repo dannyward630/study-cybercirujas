@@ -338,3 +338,26 @@ cert: ## take ONE certification from wherever it is to finished (CERT= [BACKEND=
 
 next: ## do whatever comes next, deciding for you which certification needs it
 	@$(VENV)/bin/python3 scripts/next_work.py $(if $(BACKEND),--backend $(BACKEND),) $(if $(DRY),--dry-run,)
+
+# ---------------------------------------------------------------------------
+# Before you push (CONTRIBUTING.md -> "Check before you push").
+# ---------------------------------------------------------------------------
+
+.PHONY: pr-check install-hooks uninstall-hooks
+
+BASE     ?= origin/main
+PR_BODY  ?=
+PR_TITLE ?=
+QUICK    ?=
+
+pr-check: ## the checks CI runs on a PR, locally, one line each (QUICK=1 skips the 4-min unit tests; BASE= PR_BODY=draft.md PR_TITLE=)
+	@$(VENV)/bin/python3 scripts/pr_check.py --base $(BASE) $(if $(QUICK),--quick) $(if $(PR_BODY),--body-file $(PR_BODY)) $(if $(PR_TITLE),--title "$(PR_TITLE)")
+
+install-hooks: ## OPTIONAL: run `make pr-check` before every `git push` (this clone only; undo: make uninstall-hooks)
+	@test "$$(git config core.hooksPath)" = ".githooks" || { echo "run 'make setup' first (it sets core.hooksPath to .githooks)"; exit 1; }
+	git config --local pr-check.prepush true
+	@echo "OK: git push now runs make pr-check (.githooks/pre-push, switched on by .git/config). Undo: make uninstall-hooks"
+
+uninstall-hooks: ## switch the pre-push check off again
+	-git config --local --unset pr-check.prepush
+	@echo "OK: git push no longer runs make pr-check"

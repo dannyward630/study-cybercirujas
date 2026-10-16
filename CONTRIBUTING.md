@@ -122,6 +122,65 @@ review; a high score from automatic checks alone stops at *AI beta*.
   MODELS.md, the README table, the API table) are regenerated, never edited
   by hand: `teach status`, `scripts/gen_readme_table.py`, `scripts/gen_api_docs.py`.
 
+## Check before you push
+
+CI takes minutes, and a review round more. `make pr-check` runs, on your
+machine, the fast checks CI would run on your PR (about a minute with `QUICK=1`,
+about five with the full unit-test suite), so you find the failure before you push instead of after.
+
+```bash
+make pr-check QUICK=1                                   # about a minute: everything but the full unit tests
+make pr-check                                           # all of it, about five minutes (run it once before asking for review)
+make pr-check PR_BODY=body.md PR_TITLE="feat(x): y"     # plus your draft PR description
+```
+
+It prints one line per check and a summary, and exits non-zero if any check FAILs:
+
+```text
+OK    check_manifests.py  (9.0s)
+FAIL  check_source_chain.py  (1.6s)
+        chain: certs/cka/3.3/lab/lab.yaml does not declare its origin: derived_from
+WARN  code graph fresh (warn-only)
+11 OK, 1 WARN, 1 FAIL in 60s
+```
+
+- **OK**: passed. **WARN**: not blocking, but read it (a stale graph, a skipped
+  check, CRLF line endings). **FAIL**: CI would fail too. Read the indented
+  lines under it (they are that script's own message), fix, run it again.
+- It does not duplicate CI: the content checks are the recipe of `make
+  verify-ci` (the same one CI runs, quality score included), plus the secrets
+  scan, `scripts/check_docs.py`, the code-graph freshness (warn-only, needs
+  `make graph-setup`), `scripts/check_pr.py` on your description when you give
+  `PR_BODY`, and the groundedness check. Groundedness
+  is advisory and runs only when its weights are already downloaded
+  (`make groundedness-setup`, once); otherwise the line says CI-only.
+- **Stays CI-only**, because it needs the network, a model, Docker or a
+  cluster, or the pushed commit: `make test-e2e`, the Docker image build, the
+  kind labs, `check_citations` / `check_api_facts`, `check_claims`, and the
+  "Where it ran" check of the cited run.
+- **Windows:** native Windows is not supported; use WSL (Ubuntu). On Windows
+  git may check files out with CRLF line endings, which changes every sha256
+  the source chain compares; `make pr-check` WARNs when a tracked text file has
+  them. Fix: `git config core.autocrlf false` and check the files out again (or
+  clone inside WSL).
+
+### Optional: run it automatically before every `git push`
+
+A *git hook* is a script that git runs by itself at a fixed moment; this one
+runs before `git push`. It is optional, local to your clone and never shared or
+forced: nothing installs it for you, and it does nothing until you ask.
+
+```bash
+make setup            # once; sets core.hooksPath to .githooks (the pre-commit hook lives there)
+make install-hooks    # switch it on: sets `pr-check.prepush true` in this clone's .git/config
+make uninstall-hooks  # switch it off (same as: git config --local --unset pr-check.prepush)
+```
+
+The hook file, `.githooks/pre-push`, is part of the repository; it exits at
+once unless that config key is `true`. When on, every `git push` waits about a
+minute for `make pr-check QUICK=1` and is refused if it FAILs. Skip it once
+with `git push --no-verify`.
+
 ## Pull requests
 
 One template per kind of change, in
@@ -260,6 +319,7 @@ installing dependencies. CI runs the same targets.
 | the code graph is what the tree builds (a warning on a PR, never a failure: CI refreshes it on `main` through a bot PR, `make graph` stays optional) | `scripts/check_graph.py --regenerate` | `make graph-setup && make graph` (free, tree-sitter only; CI: job `docs-consistency`) |
 | the quality score: every topic's `quality:` block is what the files give (after generating or editing material) | `scripts/quality_score.py --check`, `tests/test_quality_score.py` | `make quality CERT=<cert>`, then commit the meta.yaml it changed |
 | the PR description: required sections, Conventional Commit title, declared provenance = `meta.yaml`, Where it ran on the head commit, size and scope | `scripts/check_pr.py`, `tests/test_check_pr.py` | `scripts/check_pr.py --title "<title>" --body-file <body.md> --base origin/main` (CI runs it on every PR) |
+| the checks CI runs on a PR, before you push (one line each) | `scripts/pr_check.py`, `tests/test_pr_check.py` | `make pr-check` (see *Check before you push*) |
 | everything fast above, in one go | `tests/` | `make test` |
 
 Lab lifecycle in a container (run → break → verify → cleanup per lab) joins
