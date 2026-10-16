@@ -141,7 +141,7 @@ carries, in its `meta.yaml`, a `quality:` block written by
 `scripts/quality_score.py` (`make quality`; `--check` in CI): one entry per
 check — quality floor, provenance, sources, citations, Kubernetes manifests,
 translation gate, source chain, the lab in the runner, independent review,
-human review, and a reserved place for groundedness — each `pass`, `fail` or
+human review, and groundedness (advisory, below) — each `pass`, `fail` or
 `not_run`, with its weight, date and evidence. The weights and the level
 thresholds (*Verified*, *AI beta*, *Draft*) live in `quality_weights.yaml`. A
 check that did not run costs part of its weight and a failed one all of it:
@@ -151,3 +151,13 @@ STATUS.md, on the site and in the API.
 *Not enforced:* that a sentence is *true* to the source it cites. The chain
 proves where each link comes from and when its origin moved; correctness is
 the quality floor, the citation and source checks, and review.
+
+*Checked, advisory:* whether each sentence of a topic is **supported** by the
+sources that topic declares (link 1 and the documents link 2 cites).
+`scripts/check_groundedness.py` scores every claim with a pinned classifier
+(GLiClass) and lists the unsupported ones; `--deep` confirms them with a
+larger judge (Granite Guardian). The CI job `groundedness` runs it on the
+topics a PR changes and reports without failing (`groundedness.yaml`
+`mode: warn`); whether it blocks is the maintainer's decision once a
+baseline over the corpus is measured. It finds a number, a list or an output
+the source does not say; it does not find a wrong design or a wrong source.
