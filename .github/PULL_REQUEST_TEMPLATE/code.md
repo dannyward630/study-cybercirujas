@@ -25,6 +25,7 @@ code — area (api / cli / labs / pipeline / checks / ci):
 
 <!-- Commands you ran and their short output. -->
 ```
+make pr-check   # CI's PR checks, locally (CONTRIBUTING -> Check before you push)
 make test
 ...
 make verify-ci

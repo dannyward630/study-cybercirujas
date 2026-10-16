@@ -67,6 +67,7 @@ link check / rendered preview
 git clone https://github.com/villadalmine/study-cybercirujas.git && cd study-cybercirujas
 git fetch origin pull/<N>/head:pr && git checkout pr
 make setup && make test
+make pr-check   # CI's PR checks, locally (CONTRIBUTING -> Check before you push)
 make verify-ci
 ```
 

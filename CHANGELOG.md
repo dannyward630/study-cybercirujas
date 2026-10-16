@@ -60,6 +60,13 @@ Record of what has been delivered. Free-form, reverse chronological order (most 
   and then dispatches `verify.yml` on the branch, which starts the required
   checks (`pr-format` looks the PR up by branch when dispatched). One
   repository setting, once: Actions may create pull requests.
+- **`make pr-check`: the checks CI runs on a PR, on your machine** (CONTRIBUTING ->
+  *Check before you push*). One OK/FAIL/WARN line per check, about a minute with
+  `QUICK=1` and five with the full unit tests: the `make verify-ci` recipe read from the Makefile (so it cannot drift from
+  CI), the secrets scan, `check_docs.py`, a warn-only code-graph check, `check_pr.py` on a draft
+  description (`PR_BODY=`), and groundedness when its weights are cached, and a WARN when tracked files have CRLF. Optional, never auto-installed
+  pre-push hook: `make install-hooks` / `make uninstall-hooks`. Network, model,
+  Docker and cluster checks stay in CI.
 - **The source chain is declared and enforced** (docs/PRINCIPLES.md → *The
   source chain*): syllabus → content → exercises and labs → translations →
   video, each link resting only on the one before and saying which.
