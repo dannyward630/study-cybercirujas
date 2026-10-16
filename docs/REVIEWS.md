@@ -120,6 +120,21 @@ reviews:
 and runs `make quality` so the block shows it. A failed review is recorded
 too: it lowers the score until a later review passes.
 
+## The graph refresh PR
+
+`graphify-out/` (the committed code graph) is not part of anyone's feature PR.
+Whoever merges first no longer makes the other rebase to refresh it:
+`.github/workflows/graph.yml` regenerates it on `main` and opens one bot PR,
+`chore(graph): regenerate code graph`, from the branch `bot/graph-refresh`
+([docs/DEVTOOLS.md](DEVTOOLS.md)). A feature PR that shows a stale graph
+warning in `make verify` is fine; one that touches `graphify-out/` is asked to
+drop that from the diff. The bot PR is reviewed like any PR, minus the
+description: `scripts/check_pr.py` checks only its title when the branch is
+`bot/graph-refresh` and every changed file is under `graphify-out/`. Its
+required checks are started by the workflow itself (it dispatches `verify.yml` on the
+branch with `GITHUB_TOKEN`; no secret). The
+maintainer merges it; an agent never does.
+
 ## When a PR is ready
 
 - the latest Copilot review is triaged and has no open valid finding (or the
@@ -129,7 +144,8 @@ too: it lowers the score until a later review passes.
 - *Authorship* and its *Findings ledger* list every review and every finding
   of the last round.
 - docs are consistent (`make check-docs` green, CI job `docs-consistency`),
-  and the code graph is regenerated (`make graph`) when the PR touches
-  `teach/` or `scripts/` — or the PR says why not.
+  (the code graph is not part of this: `make graph` is optional locally, the PR
+  leaves `graphify-out/` out, and a stale graph is only a warning because
+  `main` refreshes it through the bot PR, see *The graph refresh PR*).
 
 Then the maintainer merges. An agent never does.
