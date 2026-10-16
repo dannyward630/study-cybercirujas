@@ -141,7 +141,7 @@ certs:
     last_checked: '2026-09-03'
     file: certs/cka.md
     sources:
-      objectives: https://github.com/cncf/curriculum/raw/master/CKA_Curriculum_v1.35.pdf
+      objectives: https://github.com/cncf/curriculum/raw/master/CKA_Curriculum_v1.37.pdf
       repo: https://github.com/cncf/curriculum
     license: CC-BY 4.0
     level: professional
@@ -160,7 +160,7 @@ certs:
     last_checked: '2026-09-03'
     file: certs/ckad.md
     sources:
-      objectives: https://github.com/cncf/curriculum/raw/master/CKAD_Curriculum_v1.35.pdf
+      objectives: https://github.com/cncf/curriculum/raw/master/CKAD_Curriculum_v1.37.pdf
       repo: https://github.com/cncf/curriculum
     license: CC-BY 4.0
     level: professional
